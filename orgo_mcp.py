@@ -1099,7 +1099,8 @@ async def orgo_create_computer(params: CreateComputerInput) -> str:
             name=params.name,
             os=params.os,
             ram=params.ram,
-            cpu=params.cpu
+            cpu=params.cpu,
+            api_key=get_current_api_key(),
         )
         return ComputerInfo(
             id=computer.computer_id,
