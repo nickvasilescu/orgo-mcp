@@ -71,13 +71,10 @@ services:
 #        "orgo": {
 #          "command": "npx",
 #          "args": ["-y", "mcp-remote", "https://orgo-mcp-xxxx.onrender.com/mcp",
-#                   "--header", "X-Orgo-API-Key:${ORGO_API_KEY}"]
+#                   "--header", "X-Orgo-API-Key:YOUR_API_KEY"]
 #        }
 #      }
 #    }
-#
-#    Security Best Practice: Set ORGO_API_KEY in ~/.zshrc:
-#      export ORGO_API_KEY='sk_live_your_key_here'
 #
 # 4. For production, consider upgrading to 'standard' plan for:
 #    - Zero downtime deploys
