@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only dependency files first (better layer caching)
-COPY pyproject.toml ./
+COPY pyproject.toml README.md LICENSE ./
 
 # Create virtual environment and install dependencies
 RUN python -m venv /opt/venv
