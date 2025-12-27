@@ -2,52 +2,126 @@
 
 An MCP (Model Context Protocol) server that gives AI agents the ability to control virtual computers through [Orgo](https://orgo.ai).
 
-## Quick Start (Cloud-Hosted)
+---
 
-The fastest way to use Orgo MCP - no installation required!
+## Get Started in 60 Seconds
 
-### 1. Get Your API Key
+```
++-------------------------------------------------------------+
+|  STEP 1: Get Key  >  STEP 2: Configure  >  STEP 3: Use!    |
++-------------------------------------------------------------+
+```
 
-Sign up at [orgo.ai](https://orgo.ai) and copy your API key.
+### Step 1: Get Your API Key
 
-### 2. Configure Your Client
+| Action | Link |
+|--------|------|
+| **New user?** | [Sign up at orgo.ai](https://orgo.ai) |
+| **Existing user?** | [Go to Dashboard](https://orgo.ai/dashboard) |
 
-<details>
-<summary><strong>Claude Code (CLI)</strong></summary>
+**Where to find your key:**
+```
++----------------------------------------------------------+
+|  orgo.ai Dashboard                                       |
++----------------------------------------------------------+
+|                                                          |
+|   Settings  >  API Keys  >  [ Copy Key ]                 |
+|                                                          |
+|   Your key looks like:  sk_live_abc123...                |
+|                         ^^^^^^^^                         |
+|                         Always starts with sk_live_      |
+|                                                          |
++----------------------------------------------------------+
+```
+
+> **Tip:** Keep your API key private - never commit it to git!
+
+---
+
+### Step 2: Configure Your Client
+
+Choose your setup method:
+
+<details open>
+<summary><strong>Claude Code (CLI) - Recommended</strong></summary>
+
+Run this single command:
 
 ```bash
 claude mcp add --transport http orgo https://orgo-mcp.onrender.com/mcp \
   --header "X-Orgo-API-Key: YOUR_API_KEY"
+#                           ^^^^^^^^^^^^^
+#                           Replace this with your actual key!
+```
+
+**Example with a real key format:**
+```bash
+claude mcp add --transport http orgo https://orgo-mcp.onrender.com/mcp \
+  --header "X-Orgo-API-Key: sk_live_abc123xyz789"
 ```
 
 </details>
 
 <details>
-<summary><strong>Claude Desktop (via mcp-remote)</strong></summary>
+<summary><strong>Claude Desktop (macOS)</strong></summary>
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+**1. Open your config file:**
+```bash
+open ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
 
+**2. Add this configuration:**
 ```json
 {
   "mcpServers": {
     "orgo": {
       "command": "npx",
       "args": ["-y", "mcp-remote", "https://orgo-mcp.onrender.com/mcp",
-               "--header", "X-Orgo-API-Key:YOUR_API_KEY"]
+               "--header", "X-Orgo-API-Key:sk_live_YOUR_KEY_HERE"]
     }
   }
 }
 ```
 
-**Note**: No space after the colon in `X-Orgo-API-Key:YOUR_API_KEY` (mcp-remote quirk).
+> **Important:** No space after the colon in `X-Orgo-API-Key:sk_live_...`
+
+**3. Restart Claude Desktop**
 
 </details>
 
 <details>
-<summary><strong>Project Configuration (.mcp.json)</strong></summary>
+<summary><strong>Claude Desktop (Windows)</strong></summary>
 
-For team sharing, create `.mcp.json` at your project root:
+**1. Open your config file:**
+```
+%APPDATA%\Claude\claude_desktop_config.json
+```
 
+**2. Add this configuration:**
+```json
+{
+  "mcpServers": {
+    "orgo": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://orgo-mcp.onrender.com/mcp",
+               "--header", "X-Orgo-API-Key:sk_live_YOUR_KEY_HERE"]
+    }
+  }
+}
+```
+
+> **Important:** No space after the colon in `X-Orgo-API-Key:sk_live_...`
+
+**3. Restart Claude Desktop**
+
+</details>
+
+<details>
+<summary><strong>Team Project (.mcp.json)</strong></summary>
+
+For sharing with your team without exposing keys:
+
+**1. Create `.mcp.json` in your project root:**
 ```json
 {
   "mcpServers": {
@@ -62,11 +136,19 @@ For team sharing, create `.mcp.json` at your project root:
 }
 ```
 
-Each team member sets their own key: `export ORGO_API_KEY="sk_live_xxx"`
+**2. Each team member sets their own key:**
+```bash
+# Add to ~/.bashrc or ~/.zshrc for persistence
+export ORGO_API_KEY="sk_live_your_personal_key"
+```
 
 </details>
 
-### 3. Start Using
+---
+
+### Step 3: Start Using!
+
+Try these commands in Claude:
 
 ```
 "Create a Linux computer with 4GB RAM"
@@ -74,6 +156,29 @@ Each team member sets their own key: `export ORGO_API_KEY="sk_live_xxx"`
 "Run 'ls -la' on the computer"
 "Type 'hello world' and press Enter"
 ```
+
+---
+
+## Troubleshooting API Key Issues
+
+<details open>
+<summary><strong>Common Problems and Quick Fixes</strong></summary>
+
+| Error Message | What is Wrong | How to Fix |
+|--------------|--------------|------------|
+| `Invalid API key` | Key format is wrong | Make sure it starts with `sk_live_` |
+| `X-Orgo-API-Key header required` | Key not passed correctly | Check for extra spaces in header |
+| `401 Unauthorized` | Key is expired or invalid | Generate a new key at [orgo.ai](https://orgo.ai/dashboard) |
+
+**Quick validation checklist:**
+```
+[ ] Key starts with: sk_live_
+[ ] No extra spaces before/after the key
+[ ] Key copied completely (no truncation)
+[ ] Quotes are straight " not curly
+```
+
+</details>
 
 ---
 
@@ -238,19 +343,7 @@ Your server will be at: `https://orgo-mcp.fly.dev`
 
 ---
 
-## Troubleshooting
-
-### "Invalid API key" Error
-
-- Verify your key starts with `sk_live_`
-- Check for extra spaces or quotes
-- Regenerate key at [orgo.ai](https://orgo.ai)
-
-### "X-Orgo-API-Key header required" Error
-
-- Ensure the header is properly formatted
-- For mcp-remote: use `Key:Value` format (no space after colon)
-- Check environment variable is set
+## Additional Troubleshooting
 
 ### "Connection refused" Error
 
@@ -288,16 +381,16 @@ Local Deployment:
 
 ```
 orgo-mcp/
-├── orgo_mcp.py       # MCP server (34 tools, dual transport)
-├── pyproject.toml    # Package configuration
-├── Dockerfile        # Production container
-├── docker-compose.yml # Local development
-├── render.yaml       # Render.com deployment
-├── fly.toml          # Fly.io deployment
-├── .dockerignore     # Docker build exclusions
-├── .env.example      # Environment template
-├── README.md
-└── LICENSE
++-- orgo_mcp.py       # MCP server (34 tools, dual transport)
++-- pyproject.toml    # Package configuration
++-- Dockerfile        # Production container
++-- docker-compose.yml # Local development
++-- render.yaml       # Render.com deployment
++-- fly.toml          # Fly.io deployment
++-- .dockerignore     # Docker build exclusions
++-- .env.example      # Environment template
++-- README.md
++-- LICENSE
 ```
 
 ---
