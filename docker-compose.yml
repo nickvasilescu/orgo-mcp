@@ -1,0 +1,88 @@
+# ==============================================================================
+# docker-compose.yml - Local Development and Testing
+# ==============================================================================
+version: "3.9"
+
+services:
+  orgo-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: orgo-mcp-server
+
+    # Port mapping for HTTP transport
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+
+    # Environment configuration
+    environment:
+      # MCP transport mode: 'stdio' (default) or 'http' (for HTTP)
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
+      # Port for HTTP transport (only used when MCP_TRANSPORT=http)
+      - PORT=${PORT:-8000}
+      # Python settings
+      - PYTHONUNBUFFERED=1
+      # Log level (optional)
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # CORS origins (optional, comma-separated)
+      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+
+    # Resource limits for local development
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+    # Health check configuration
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(5); s.connect(('localhost', 8000)); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ==============================================================================
+# Usage:
+#
+# Build and run:
+#   docker-compose up --build
+#
+# Run in background:
+#   docker-compose up -d
+#
+# View logs:
+#   docker-compose logs -f
+#
+# Stop:
+#   docker-compose down
+#
+# Test health:
+#   curl http://localhost:8000/health
+#
+# Test MCP endpoint:
+#   curl -X POST http://localhost:8000/mcp \
+#     -H "Content-Type: application/json" \
+#     -H "X-Orgo-API-Key: your_api_key" \
+#     -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+#
+# ==============================================================================

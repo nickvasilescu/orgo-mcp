@@ -1,0 +1,84 @@
+# ==============================================================================
+# render.yaml - Render.com Blueprint Specification
+# Deploy Orgo MCP Server as a Web Service
+# ==============================================================================
+#
+# Render Blueprint specification
+# Docs: https://docs.render.com/blueprint-spec
+#
+# Deployment Steps:
+# 1. Push this repo to GitHub
+# 2. Go to https://dashboard.render.com/blueprints
+# 3. Click "New Blueprint Instance"
+# 4. Connect your GitHub repo
+# 5. Deploy!
+#
+# The server will be available at: https://orgo-mcp-xxxx.onrender.com
+#
+# ==============================================================================
+
+services:
+  # Main MCP server service
+  - type: web
+    name: orgo-mcp
+    runtime: docker
+
+    # GitHub repository settings (update with your repo)
+    repo: https://github.com/nickvasilescu/orgo-mcp
+    branch: main
+
+    # Build configuration
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+
+    # Instance configuration
+    # Options: free, starter ($7/month), standard ($25), pro ($85)
+    plan: starter
+
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+
+    # Health check configuration
+    healthCheckPath: /health
+
+    # Environment variables
+    envVars:
+      # MCP transport configuration
+      - key: MCP_TRANSPORT
+        value: http
+
+      # Python configuration
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+      # CORS origins (optional - defaults to * for all origins)
+      # - key: CORS_ORIGINS
+      #   value: "https://claude.ai,https://your-app.com"
+
+# ==============================================================================
+# Notes:
+#
+# 1. Users connect with their own Orgo API key via X-Orgo-API-Key header
+#    No server-side API key configuration needed!
+#
+# 2. Client Configuration (Claude Code):
+#    claude mcp add --transport http orgo https://orgo-mcp-xxxx.onrender.com/mcp \
+#      --header "X-Orgo-API-Key: YOUR_API_KEY"
+#
+# 3. Client Configuration (Claude Desktop with mcp-remote):
+#    {
+#      "mcpServers": {
+#        "orgo": {
+#          "command": "npx",
+#          "args": ["-y", "mcp-remote", "https://orgo-mcp-xxxx.onrender.com/mcp",
+#                   "--header", "X-Orgo-API-Key:YOUR_API_KEY"]
+#        }
+#      }
+#    }
+#
+# 4. For production, consider upgrading to 'standard' plan for:
+#    - Zero downtime deploys
+#    - More resources (2GB RAM, 1 CPU)
+#    - Custom domains with automatic SSL
+#
+# ==============================================================================

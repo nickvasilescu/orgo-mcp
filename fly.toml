@@ -1,0 +1,78 @@
+# ==============================================================================
+# fly.toml - Fly.io Application Configuration
+# Alternative deployment target for Orgo MCP Server
+# ==============================================================================
+#
+# Deployment Steps:
+# 1. Install flyctl: curl -L https://fly.io/install.sh | sh
+# 2. Login: fly auth login
+# 3. Launch (first time): fly launch --no-deploy
+# 4. Deploy: fly deploy
+#
+# The server will be available at: https://orgo-mcp.fly.dev
+#
+# ==============================================================================
+
+# Application name (must be unique globally on Fly.io)
+app = "orgo-mcp"
+
+# Primary deployment region
+# See: https://fly.io/docs/reference/regions/
+primary_region = "iad"  # Ashburn, Virginia (US East)
+
+# Build configuration
+[build]
+  dockerfile = "Dockerfile"
+
+# Environment variables (non-secret)
+[env]
+  MCP_TRANSPORT = "http"
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
+  # CORS_ORIGINS = "*"  # Uncomment to restrict origins
+
+# HTTP service configuration
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false  # Keep running for MCP connections
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+# Health check configuration
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "30s"
+  method = "GET"
+  path = "/health"
+  timeout = "5s"
+
+# VM configuration
+[[vm]]
+  size = "shared-cpu-1x"  # 256MB RAM, shared CPU (~$2-5/month)
+  memory = "512mb"
+  # For production, consider: "shared-cpu-2x" or "performance-1x"
+
+# ==============================================================================
+# Notes:
+#
+# 1. Users connect with their own Orgo API key via X-Orgo-API-Key header
+#    No server-side secrets needed!
+#
+# 2. Useful Commands:
+#    - Deploy: fly deploy
+#    - View logs: fly logs
+#    - SSH into container: fly ssh console
+#    - Scale: fly scale count 2
+#    - Status: fly status
+#
+# 3. Client Configuration (Claude Code):
+#    claude mcp add --transport http orgo https://orgo-mcp.fly.dev/mcp \
+#      --header "X-Orgo-API-Key: YOUR_API_KEY"
+#
+# ==============================================================================
