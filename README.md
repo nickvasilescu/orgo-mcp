@@ -33,13 +33,22 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
     "orgo": {
       "command": "npx",
       "args": ["-y", "mcp-remote", "https://orgo-mcp.onrender.com/mcp",
-               "--header", "X-Orgo-API-Key:YOUR_API_KEY"]
+               "--header", "X-Orgo-API-Key:${ORGO_API_KEY}"]
     }
   }
 }
 ```
 
-**Note**: No space after the colon in `X-Orgo-API-Key:YOUR_API_KEY` (mcp-remote quirk).
+**Security Best Practice**: Store your API key in an environment variable:
+
+1. Add to `~/.zshrc` (macOS/Linux) or system environment variables (Windows):
+   ```bash
+   export ORGO_API_KEY='sk_live_your_key_here'
+   ```
+
+2. Restart your terminal, then restart Claude Desktop.
+
+**Note**: No space after the colon in `X-Orgo-API-Key:${ORGO_API_KEY}` (mcp-remote quirk).
 
 </details>
 
