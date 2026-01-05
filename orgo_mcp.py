@@ -3,8 +3,8 @@
 Orgo MCP Server - Virtual Computer Control
 
 An MCP server that gives AI agents the ability to control virtual computers via Orgo.
-Exposes 34 tools for VM management, screen actions, shell commands, file operations,
-streaming, and AI completion.
+Exposes 35 tools for VM management, screen actions, shell commands, file operations,
+streaming, AI agents, and AI completion.
 
 Requires: ORGO_API_KEY environment variable
 Get your key at: https://orgo.ai
@@ -475,6 +475,47 @@ class AICompletionInput(BaseModel):
     system: Optional[str] = Field(default=None, description="Optional system message")
     max_tokens: int = Field(default=1024, ge=1, le=100000, description="Maximum tokens to generate")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Sampling temperature (0-2)")
+
+
+class PromptInput(BaseModel):
+    """Input for launching an AI agent task on Orgo.
+
+    This model validates parameters for asynchronous agent execution.
+    The agent runs autonomously on Orgo's infrastructure.
+    """
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra='forbid'
+    )
+
+    prompt: str = Field(
+        ...,
+        description="Natural language instruction for the AI agent (e.g., 'Open Firefox and search for AI news')",
+        min_length=1,
+        max_length=10000
+    )
+    computer_id: Optional[str] = Field(
+        default=None,
+        description="Existing computer ID to run task on. If omitted, creates a new computer.",
+        min_length=1
+    )
+    project_name: Optional[str] = Field(
+        default=None,
+        description="Project name for new computer (only used when computer_id is omitted, defaults to 'MCP Agents')",
+        max_length=100
+    )
+    computer_name: Optional[str] = Field(
+        default=None,
+        description="Display name for new computer (only used when computer_id is omitted)",
+        max_length=100
+    )
+    max_iterations: int = Field(
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum agent iterations before stopping (1-200, default: 50)"
+    )
 
 
 # ============================================================================
@@ -1714,6 +1755,148 @@ async def orgo_exec(params: ExecInput) -> str:
 
     try:
         return await asyncio.to_thread(run_exec)
+    except Exception as e:
+        return _handle_orgo_error(e)
+
+
+# ============================================================================
+# AI Agent Tools
+# ============================================================================
+
+# Storage for fire-and-forget background tasks (prevents garbage collection)
+_background_prompt_tasks: Dict[str, asyncio.Task] = {}
+
+
+async def _execute_prompt_in_background(
+    computer_id: str,
+    prompt: str,
+    max_iterations: int,
+    api_key: str
+) -> None:
+    """
+    Execute computer.prompt() in background thread.
+
+    This function runs asynchronously without blocking the MCP response.
+    Errors are logged but not raised (fire-and-forget pattern).
+    """
+    def run_prompt_sync():
+        from orgo import Computer
+        computer = Computer(computer_id=computer_id, api_key=api_key)
+        computer.prompt(
+            prompt,
+            max_iterations=max_iterations,
+            verbose=False
+        )
+
+    try:
+        await asyncio.to_thread(run_prompt_sync)
+        logger.info(f"Background prompt completed for computer {computer_id}")
+    except Exception as e:
+        # Log but don't raise - task is fire-and-forget
+        logger.error(f"Background prompt failed for computer {computer_id}: {e}")
+    finally:
+        # Clean up task reference
+        _background_prompt_tasks.pop(computer_id, None)
+
+
+@mcp.tool(
+    name="orgo_prompt",
+    annotations={
+        "title": "Run AI Agent Task",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def orgo_prompt(params: PromptInput) -> str:
+    """
+    Send an AI agent to complete a task on an Orgo computer (fire-and-forget).
+
+    Launches a task asynchronously and returns immediately with a URL to monitor
+    progress. The agent runs on Orgo's hosted AI infrastructure, controlling
+    the computer with mouse, keyboard, and bash commands to complete the task.
+
+    This is ideal for long-running tasks where you don't want to wait for
+    completion. Check progress at the returned URL or use orgo_screenshot.
+
+    Args:
+        params (PromptInput): Input containing:
+            - prompt (str): Natural language instruction for the AI agent
+            - computer_id (Optional[str]): Existing computer ID. Creates new if omitted
+            - project_name (Optional[str]): Project for new computer (default: 'MCP Agents')
+            - computer_name (Optional[str]): Display name for new computer
+            - max_iterations (int): Max agent loops, 1-200 (default: 50)
+
+    Returns:
+        str: Markdown-formatted response containing:
+            - Computer ID for reference
+            - Task summary (truncated if long)
+            - URL to monitor progress at orgo.ai
+            - Instructions for checking status and cleanup
+
+    Examples:
+        - "Search for AI news and create a summary document"
+          -> Creates new computer, starts agent, returns URL immediately
+        - "Fill out the contact form with test data" (with computer_id)
+          -> Uses existing computer, starts agent on current screen state
+
+    Error Handling:
+        - Returns "Error: Resource not found..." if computer_id is invalid
+        - Returns "Error: Insufficient credits..." if account balance is low
+        - Returns "Error: Invalid API key..." if authentication fails
+    """
+    api_key = get_current_api_key()
+
+    def setup_computer() -> tuple:
+        """Create or connect to computer (synchronous, runs in thread)."""
+        from orgo import Computer
+
+        if params.computer_id:
+            # Connect to existing computer
+            computer = Computer(computer_id=params.computer_id, api_key=api_key)
+            return computer.computer_id, computer.url
+        else:
+            # Create new computer in specified project
+            computer = Computer(
+                project=params.project_name or "MCP Agents",
+                name=params.computer_name,
+                api_key=api_key
+            )
+            return computer.computer_id, computer.url
+
+    try:
+        # Step 1: Create or connect to computer (fast, ~500ms)
+        computer_id, computer_url = await asyncio.to_thread(setup_computer)
+
+        # Step 2: Launch prompt in background (non-blocking)
+        task = asyncio.create_task(
+            _execute_prompt_in_background(
+                computer_id=computer_id,
+                prompt=params.prompt,
+                max_iterations=params.max_iterations,
+                api_key=api_key
+            )
+        )
+        _background_prompt_tasks[computer_id] = task
+
+        # Step 3: Return immediately with monitoring info
+        task_preview = params.prompt[:100] + ('...' if len(params.prompt) > 100 else '')
+
+        return (
+            f"# AI Agent Dispatched\n\n"
+            f"**Computer ID:** `{computer_id}`\n\n"
+            f"**Task:** {task_preview}\n\n"
+            f"**Monitor progress:** {computer_url}\n\n"
+            f"---\n\n"
+            f"The agent is now running autonomously on Orgo's infrastructure.\n\n"
+            f"**To check status:**\n"
+            f"- Visit the URL above to watch the agent in real-time\n"
+            f"- Use `orgo_screenshot` with computer_id `{computer_id}`\n\n"
+            f"**When complete:**\n"
+            f"- Use `orgo_delete_computer` to clean up (or leave running for future tasks)"
+        )
+
     except Exception as e:
         return _handle_orgo_error(e)
 
