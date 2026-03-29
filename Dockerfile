@@ -30,7 +30,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install the package with dependencies
-COPY orgo_mcp.py ./
+COPY orgo_mcp/ ./orgo_mcp/
 RUN pip install --no-cache-dir .
 
 # ------------------------------------------------------------------------------
@@ -41,7 +41,7 @@ FROM python:3.12-slim-bookworm AS runtime
 # Labels for container metadata
 LABEL org.opencontainers.image.title="Orgo MCP Server" \
       org.opencontainers.image.description="MCP server for AI agents to control virtual computers via Orgo" \
-      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.version="2.0.0" \
       org.opencontainers.image.vendor="Nick Vasilescu" \
       org.opencontainers.image.source="https://github.com/nickvasilescu/orgo-mcp" \
       org.opencontainers.image.licenses="MIT"
