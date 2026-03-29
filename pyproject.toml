@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "orgo-mcp"
-version = "1.0.0"
-description = "MCP server for Orgo virtual computer control"
+version = "2.0.0"
+description = "MCP server for Orgo virtual computer control — workspace, agent, and VM management"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -52,7 +52,7 @@ orgo-mcp = "orgo_mcp:main"
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "orgo_mcp.py",
+    "orgo_mcp/",
     "README.md",
     "LICENSE",
 ]

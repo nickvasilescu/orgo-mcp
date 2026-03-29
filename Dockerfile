@@ -63,7 +63,7 @@ COPY --from=builder /opt/venv /opt/venv
 
 # Copy application code
 WORKDIR /app
-COPY --chown=mcp:mcp orgo_mcp.py ./
+COPY --chown=mcp:mcp orgo_mcp/ ./orgo_mcp/
 
 # Switch to non-root user
 USER mcp
@@ -76,4 +76,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('localhost', ${PORT:-8000})); s.close()" || exit 1
 
 # Default command - run the MCP server
-CMD ["python", "orgo_mcp.py"]
+CMD ["python", "-m", "orgo_mcp"]
