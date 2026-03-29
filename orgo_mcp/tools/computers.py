@@ -45,7 +45,7 @@ async def orgo_create_computer(params: CreateComputerInput) -> str:
         def create():
             from orgo import Computer
             kwargs = {
-                "workspace": params.workspace,
+                "project": params.workspace,
                 "api_key": api_key,
                 "os": params.os,
                 "ram": params.ram,
