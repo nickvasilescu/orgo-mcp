@@ -9,9 +9,13 @@ import asyncio
 
 from orgo_mcp.server import mcp
 from orgo_mcp.auth import get_current_api_key
-from orgo_mcp.client import api_request, get_sdk_client
+from orgo_mcp.client import api_request
 from orgo_mcp.errors import handle_orgo_error
-from orgo_mcp.models import ListComputersInput, CreateComputerInput, ComputerIdInput
+from orgo_mcp.models import (
+    ListComputersInput, CreateComputerInput, ComputerIdInput,
+    CloneComputerInput, ResizeComputerInput, AutoStopInput,
+    SkillInstallInput, StarComputerInput,
+)
 
 
 @mcp.tool(
@@ -147,6 +151,150 @@ async def orgo_restart_computer(params: ComputerIdInput) -> str:
     try:
         api_key = get_current_api_key(mcp)
         data = await api_request("POST", f"computers/{params.computer_id}/restart", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_clone_computer",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+)
+async def orgo_clone_computer(params: CloneComputerInput) -> str:
+    """Clone/duplicate a computer including its full disk state. Creates an identical copy in the same or different workspace."""
+    try:
+        api_key = get_current_api_key(mcp)
+        body = {}
+        if params.name:
+            body["name"] = params.name
+        if params.workspace_id:
+            body["targetProjectId"] = params.workspace_id
+        data = await api_request("POST", f"computers/{params.computer_id}/clone", api_key, json=body, timeout=120.0)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_resize_computer",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_resize_computer(params: ResizeComputerInput) -> str:
+    """Resize a computer's CPU, RAM, disk, or bandwidth. Some changes may require a restart."""
+    try:
+        api_key = get_current_api_key(mcp)
+        body = {}
+        if params.cpu is not None:
+            body["cpu"] = params.cpu
+        if params.ram is not None:
+            body["ram"] = params.ram
+        if params.disk_size_gb is not None:
+            body["disk_size_gb"] = params.disk_size_gb
+        if params.bandwidth_limit_mbps is not None:
+            body["bandwidth_limit_mbps"] = params.bandwidth_limit_mbps
+        data = await api_request("PATCH", f"computers/{params.computer_id}/resize", api_key, json=body)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_ensure_running",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_ensure_running(params: ComputerIdInput) -> str:
+    """Ensure a computer is running. Resumes suspended VMs automatically. Idempotent — safe to call on already-running computers."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("POST", f"computers/{params.computer_id}/ensure-running", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_auto_stop_get",
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_auto_stop_get(params: ComputerIdInput) -> str:
+    """Get the current auto-stop configuration for a computer."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("GET", f"computers/{params.computer_id}/auto-stop", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_auto_stop_set",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_auto_stop_set(params: AutoStopInput) -> str:
+    """Set auto-stop timeout for a computer. 0 disables auto-stop (paid plans only). Free tier always enforces 15min."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("PATCH", f"computers/{params.computer_id}/auto-stop", api_key, json={"minutes": params.minutes})
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_install_skill",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+)
+async def orgo_install_skill(params: SkillInstallInput) -> str:
+    """Install skill files onto a running computer via the Orgo API. Uploads files and executes the install command on the VM."""
+    try:
+        import base64
+        import httpx
+        from orgo_mcp.client import ORGO_API_BASE
+
+        api_key = get_current_api_key(mcp)
+
+        async with httpx.AsyncClient() as client:
+            files_list = []
+            for filename, b64_content in params.files_base64.items():
+                file_bytes = base64.b64decode(b64_content)
+                files_list.append(("files", (filename, file_bytes, "application/octet-stream")))
+
+            response = await client.post(
+                f"{ORGO_API_BASE}/computers/{params.computer_id}/skills/install",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files=files_list,
+                data={"skillName": params.skill_name},
+                timeout=120.0,
+            )
+            response.raise_for_status()
+            return json.dumps(response.json(), indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_star_computer",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+)
+async def orgo_star_computer(params: StarComputerInput) -> str:
+    """Star or unstar a computer for quick access."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("POST", f"computers/{params.computer_id}/star", api_key, json={"starred": params.starred})
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_starred_computers",
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+)
+async def orgo_starred_computers() -> str:
+    """List all starred computer IDs for quick access."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("GET", "computers/starred", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)

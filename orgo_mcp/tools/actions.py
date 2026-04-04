@@ -1,14 +1,12 @@
 """Screen action tools — mouse, keyboard, and screenshot control."""
 
-import json
-import asyncio
 import base64
 
 from mcp.server.fastmcp import Image
 
 from orgo_mcp.server import mcp
 from orgo_mcp.auth import get_current_api_key
-from orgo_mcp.client import get_computer
+from orgo_mcp.client import computer_action
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import ComputerIdInput, ClickInput, TypeInput, KeyInput, ScrollInput, DragInput
 
@@ -21,13 +19,9 @@ async def orgo_screenshot(params: ComputerIdInput) -> Image:
     """Take a screenshot of the computer's display. Returns a JPEG image."""
     try:
         api_key = get_current_api_key(mcp)
-
-        def take():
-            computer = get_computer(params.computer_id, api_key)
-            return computer.screenshot_base64()
-
-        b64 = await asyncio.to_thread(take)
-        return Image(data=base64.b64decode(b64), format="jpeg")
+        data = await computer_action("GET", params.computer_id, "screenshot", api_key)
+        image_b64 = data.get("image", "")
+        return Image(data=base64.b64decode(image_b64), format="png")
     except Exception as e:
         raise RuntimeError(handle_orgo_error(e))
 
@@ -40,20 +34,12 @@ async def orgo_click(params: ClickInput) -> str:
     """Click at (x, y) coordinates. Supports left/right click and double-click."""
     try:
         api_key = get_current_api_key(mcp)
-
-        def click():
-            computer = get_computer(params.computer_id, api_key)
-            if params.double:
-                computer.double_click(params.x, params.y)
-                return f"Double-clicked at ({params.x}, {params.y})"
-            elif params.button == "right":
-                computer.right_click(params.x, params.y)
-                return f"Right-clicked at ({params.x}, {params.y})"
-            else:
-                computer.left_click(params.x, params.y)
-                return f"Clicked at ({params.x}, {params.y})"
-
-        return await asyncio.to_thread(click)
+        payload = {"x": params.x, "y": params.y, "button": params.button}
+        if params.double:
+            payload["double"] = True
+        await computer_action("POST", params.computer_id, "click", api_key, json=payload)
+        action = "Double-clicked" if params.double else f"{'Right' if params.button == 'right' else ''}Clicked"
+        return f"{action} at ({params.x}, {params.y})"
     except Exception as e:
         return handle_orgo_error(e)
 
@@ -66,14 +52,9 @@ async def orgo_type(params: TypeInput) -> str:
     """Type text at the current cursor position. Click a field first."""
     try:
         api_key = get_current_api_key(mcp)
-
-        def do_type():
-            computer = get_computer(params.computer_id, api_key)
-            computer.type(params.text)
-            preview = params.text[:50] + "..." if len(params.text) > 50 else params.text
-            return f"Typed: {preview}"
-
-        return await asyncio.to_thread(do_type)
+        await computer_action("POST", params.computer_id, "type", api_key, json={"text": params.text})
+        preview = params.text[:50] + "..." if len(params.text) > 50 else params.text
+        return f"Typed: {preview}"
     except Exception as e:
         return handle_orgo_error(e)
 
@@ -86,13 +67,8 @@ async def orgo_key(params: KeyInput) -> str:
     """Press a key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab, ctrl+shift+s, F1-F12."""
     try:
         api_key = get_current_api_key(mcp)
-
-        def press():
-            computer = get_computer(params.computer_id, api_key)
-            computer.key(params.key)
-            return f"Pressed: {params.key}"
-
-        return await asyncio.to_thread(press)
+        await computer_action("POST", params.computer_id, "key", api_key, json={"key": params.key})
+        return f"Pressed: {params.key}"
     except Exception as e:
         return handle_orgo_error(e)
 
@@ -105,13 +81,9 @@ async def orgo_scroll(params: ScrollInput) -> str:
     """Scroll up or down by a specified amount."""
     try:
         api_key = get_current_api_key(mcp)
-
-        def scroll():
-            computer = get_computer(params.computer_id, api_key)
-            computer.scroll(params.direction, params.amount)
-            return f"Scrolled {params.direction} by {params.amount}"
-
-        return await asyncio.to_thread(scroll)
+        await computer_action("POST", params.computer_id, "scroll", api_key,
+                              json={"direction": params.direction, "amount": params.amount})
+        return f"Scrolled {params.direction} by {params.amount}"
     except Exception as e:
         return handle_orgo_error(e)
 
@@ -124,12 +96,11 @@ async def orgo_drag(params: DragInput) -> str:
     """Drag from (start_x, start_y) to (end_x, end_y). For drag-and-drop, text selection, window resizing."""
     try:
         api_key = get_current_api_key(mcp)
-
-        def drag():
-            computer = get_computer(params.computer_id, api_key)
-            computer.drag(params.start_x, params.start_y, params.end_x, params.end_y, duration=params.duration)
-            return f"Dragged ({params.start_x},{params.start_y}) -> ({params.end_x},{params.end_y})"
-
-        return await asyncio.to_thread(drag)
+        await computer_action("POST", params.computer_id, "drag", api_key, json={
+            "start_x": params.start_x, "start_y": params.start_y,
+            "end_x": params.end_x, "end_y": params.end_y,
+            "button": "left", "duration": params.duration,
+        })
+        return f"Dragged ({params.start_x},{params.start_y}) -> ({params.end_x},{params.end_y})"
     except Exception as e:
         return handle_orgo_error(e)

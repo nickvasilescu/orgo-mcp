@@ -153,6 +153,67 @@ class StartStreamInput(BaseModel):
 
 
 # =============================================================================
+# Clone / Resize / Auto-Stop Models
+# =============================================================================
+
+class CloneComputerInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID to clone (uses fly_instance_id internally)", min_length=1)
+    name: Optional[str] = Field(default=None, description="Name for the cloned computer (defaults to '{original}-clone')")
+    workspace_id: Optional[str] = Field(default=None, description="Target workspace ID (defaults to same workspace as source)")
+
+
+class ResizeComputerInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    cpu: Optional[int] = Field(default=None, description="New CPU cores (1, 2, 4, 8, 16)")
+    ram: Optional[int] = Field(default=None, description="New RAM in GB (4, 8, 16, 32, 64)")
+    disk_size_gb: Optional[int] = Field(default=None, description="New disk size in GB")
+    bandwidth_limit_mbps: Optional[int] = Field(default=None, description="Bandwidth limit in Mbps (null for unlimited)")
+
+
+class AutoStopInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    minutes: Optional[int] = Field(default=None, ge=0, description="Auto-stop after N minutes idle. 0 to disable. Free tier always enforces 15min.")
+
+
+class SkillInstallInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID (must be running)", min_length=1)
+    skill_name: str = Field(..., description="Name for the skill being installed", min_length=1)
+    files_base64: dict[str, str] = Field(..., description="Map of filename -> base64-encoded content for skill files (e.g. {'SKILL.md': '...', 'script.py': '...'})")
+
+
+class StarComputerInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    starred: bool = Field(default=True, description="True to star, false to unstar")
+
+
+# =============================================================================
+# Workspace Member Models
+# =============================================================================
+
+class WorkspaceMembersInput(BaseModel):
+    workspace_id: str = Field(..., description="Workspace ID", min_length=1)
+
+
+class WorkspaceInviteInput(BaseModel):
+    workspace_id: str = Field(..., description="Workspace ID", min_length=1)
+    email: str = Field(..., description="Email address to invite", min_length=1)
+    permission: Literal["viewer", "admin"] = Field(default="viewer", description="Permission level for the invited user")
+
+
+class WorkspaceByNameInput(BaseModel):
+    name: str = Field(..., description="Workspace name to look up", min_length=1)
+
+
+# =============================================================================
+# Template Models
+# =============================================================================
+
+class TemplateStarInput(BaseModel):
+    template_id: str = Field(..., description="Template ID", min_length=1)
+    starred: bool = Field(default=True, description="True to star, false to unstar")
+
+
+# =============================================================================
 # Access Models
 # =============================================================================
 
