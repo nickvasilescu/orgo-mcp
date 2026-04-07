@@ -214,6 +214,25 @@ class TemplateStarInput(BaseModel):
 
 
 # =============================================================================
+# Move Computer Models
+# =============================================================================
+
+class MoveComputerInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID to move", min_length=1)
+    workspace_id: str = Field(..., description="Target workspace ID to move the computer into", min_length=1)
+
+
+# =============================================================================
+# Wait Computer Models
+# =============================================================================
+
+class WaitComputerInput(BaseModel):
+    computer_id: str = Field(..., description="Computer ID to wait on", min_length=1)
+    state: Literal["running", "stopped"] = Field(default="running", description="Target state to wait for")
+    timeout: int = Field(default=60, ge=1, le=300, description="Max seconds to wait")
+
+
+# =============================================================================
 # Access Models
 # =============================================================================
 

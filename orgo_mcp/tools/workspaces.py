@@ -115,3 +115,45 @@ async def orgo_workspace_by_name(params: WorkspaceByNameInput) -> str:
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_start_workspace",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_start_workspace(params: WorkspaceIdInput) -> str:
+    """Start all computers in a workspace. Idempotent — already-running computers are unaffected."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("POST", f"workspaces/{params.workspace_id}/start", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_stop_workspace",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_stop_workspace(params: WorkspaceIdInput) -> str:
+    """Stop all computers in a workspace. State is preserved. Stopped computers don't incur charges."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("POST", f"workspaces/{params.workspace_id}/stop", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_restart_workspace",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_restart_workspace(params: WorkspaceIdInput) -> str:
+    """Restart all computers in a workspace."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request("POST", f"workspaces/{params.workspace_id}/restart", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)

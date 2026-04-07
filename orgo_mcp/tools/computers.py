@@ -14,7 +14,8 @@ from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import (
     ListComputersInput, CreateComputerInput, ComputerIdInput,
     CloneComputerInput, ResizeComputerInput, AutoStopInput,
-    SkillInstallInput, StarComputerInput,
+    SkillInstallInput, StarComputerInput, MoveComputerInput,
+    WaitComputerInput,
 )
 
 
@@ -295,6 +296,41 @@ async def orgo_starred_computers() -> str:
     try:
         api_key = get_current_api_key(mcp)
         data = await api_request("GET", "computers/starred", api_key)
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_move_computer",
+    annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True, "openWorldHint": True},
+)
+async def orgo_move_computer(params: MoveComputerInput) -> str:
+    """Move a computer to a different workspace. The computer keeps all its data and state."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request(
+            "PATCH", f"computers/{params.computer_id}/move", api_key,
+            json={"project_id": params.workspace_id},
+        )
+        return json.dumps(data, indent=2)
+    except Exception as e:
+        return handle_orgo_error(e)
+
+
+@mcp.tool(
+    name="orgo_wait_computer",
+    annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+)
+async def orgo_wait_computer(params: WaitComputerInput) -> str:
+    """Wait for a computer to reach a target state (e.g. 'running' after start). Blocks until the state is reached or timeout."""
+    try:
+        api_key = get_current_api_key(mcp)
+        data = await api_request(
+            "POST", f"computers/{params.computer_id}/wait", api_key,
+            json={"state": params.state, "timeout": params.timeout},
+            timeout=float(params.timeout + 10),
+        )
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
