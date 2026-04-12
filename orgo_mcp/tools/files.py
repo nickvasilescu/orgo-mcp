@@ -6,7 +6,7 @@ import base64
 import httpx
 
 from orgo_mcp.server import mcp
-from orgo_mcp.auth import get_current_api_key
+from orgo_mcp.auth import get_current_api_key, resolve_computer_id
 from orgo_mcp.client import api_request, ORGO_API_BASE
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import ListFilesInput, ExportFileInput, UploadFileInput, FileIdInput
@@ -38,8 +38,9 @@ async def orgo_export_file(params: ExportFileInput) -> str:
     Files must be under /home/user."""
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
         data = await api_request("POST", "files/export", api_key, json={
-            "desktopId": params.computer_id,
+            "desktopId": computer_id,
             "path": params.path,
         })
         return json.dumps(data, indent=2)

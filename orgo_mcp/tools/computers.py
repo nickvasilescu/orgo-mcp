@@ -8,7 +8,7 @@ import json
 import asyncio
 
 from orgo_mcp.server import mcp
-from orgo_mcp.auth import get_current_api_key
+from orgo_mcp.auth import get_current_api_key, resolve_computer_id
 from orgo_mcp.client import api_request
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import (
@@ -27,8 +27,8 @@ async def orgo_list_computers(params: ListComputersInput) -> str:
     """List all computers in a workspace. Returns IDs, names, status, specs."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"workspaces/{params.workspace_id}", api_key)
-        computers = data.get("computers", [])
+        data = await api_request("GET", f"projects/{params.workspace_id}", api_key)
+        computers = data.get("desktops", [])
         return json.dumps({"computers": computers, "count": len(computers)}, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -95,7 +95,8 @@ async def orgo_get_computer(params: ComputerIdInput) -> str:
     """Get computer details including status, specs, and dashboard URL."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"computers/{params.computer_id}", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("GET", f"computers/{computer_id}", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -109,7 +110,8 @@ async def orgo_delete_computer(params: ComputerIdInput) -> str:
     """Permanently delete a computer and all its data. Cannot be undone."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("DELETE", f"computers/{params.computer_id}", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("DELETE", f"computers/{computer_id}", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -123,7 +125,8 @@ async def orgo_start_computer(params: ComputerIdInput) -> str:
     """Start a stopped computer. State is preserved from when it was stopped. Idempotent."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"computers/{params.computer_id}/start", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("POST", f"computers/{computer_id}/start", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -137,7 +140,8 @@ async def orgo_stop_computer(params: ComputerIdInput) -> str:
     """Stop a running computer. State is preserved. Stopped computers don't incur charges."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"computers/{params.computer_id}/stop", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("POST", f"computers/{computer_id}/stop", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -151,7 +155,8 @@ async def orgo_restart_computer(params: ComputerIdInput) -> str:
     """Restart a computer. Useful for recovering from unresponsive states."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"computers/{params.computer_id}/restart", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("POST", f"computers/{computer_id}/restart", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -165,12 +170,13 @@ async def orgo_clone_computer(params: CloneComputerInput) -> str:
     """Clone/duplicate a computer including its full disk state. Creates an identical copy in the same or different workspace."""
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
         body = {}
         if params.name:
             body["name"] = params.name
         if params.workspace_id:
             body["targetProjectId"] = params.workspace_id
-        data = await api_request("POST", f"computers/{params.computer_id}/clone", api_key, json=body, timeout=120.0)
+        data = await api_request("POST", f"computers/{computer_id}/clone", api_key, json=body, timeout=120.0)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -184,6 +190,7 @@ async def orgo_resize_computer(params: ResizeComputerInput) -> str:
     """Resize a computer's CPU, RAM, disk, or bandwidth. Some changes may require a restart."""
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
         body = {}
         if params.cpu is not None:
             body["cpu"] = params.cpu
@@ -193,7 +200,7 @@ async def orgo_resize_computer(params: ResizeComputerInput) -> str:
             body["disk_size_gb"] = params.disk_size_gb
         if params.bandwidth_limit_mbps is not None:
             body["bandwidth_limit_mbps"] = params.bandwidth_limit_mbps
-        data = await api_request("PATCH", f"computers/{params.computer_id}/resize", api_key, json=body)
+        data = await api_request("PATCH", f"computers/{computer_id}/resize", api_key, json=body)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -207,7 +214,8 @@ async def orgo_ensure_running(params: ComputerIdInput) -> str:
     """Ensure a computer is running. Resumes suspended VMs automatically. Idempotent — safe to call on already-running computers."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"computers/{params.computer_id}/ensure-running", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("POST", f"computers/{computer_id}/ensure-running", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -221,7 +229,8 @@ async def orgo_auto_stop_get(params: ComputerIdInput) -> str:
     """Get the current auto-stop configuration for a computer."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"computers/{params.computer_id}/auto-stop", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("GET", f"computers/{computer_id}/auto-stop", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -235,7 +244,8 @@ async def orgo_auto_stop_set(params: AutoStopInput) -> str:
     """Set auto-stop timeout for a computer. 0 disables auto-stop (paid plans only). Free tier always enforces 15min."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("PATCH", f"computers/{params.computer_id}/auto-stop", api_key, json={"minutes": params.minutes})
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("PATCH", f"computers/{computer_id}/auto-stop", api_key, json={"minutes": params.minutes})
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -254,6 +264,8 @@ async def orgo_install_skill(params: SkillInstallInput) -> str:
 
         api_key = get_current_api_key(mcp)
 
+        computer_id = resolve_computer_id(params.computer_id)
+
         async with httpx.AsyncClient() as client:
             files_list = []
             for filename, b64_content in params.files_base64.items():
@@ -261,7 +273,7 @@ async def orgo_install_skill(params: SkillInstallInput) -> str:
                 files_list.append(("files", (filename, file_bytes, "application/octet-stream")))
 
             response = await client.post(
-                f"{ORGO_API_BASE}/computers/{params.computer_id}/skills/install",
+                f"{ORGO_API_BASE}/computers/{computer_id}/skills/install",
                 headers={"Authorization": f"Bearer {api_key}"},
                 files=files_list,
                 data={"skillName": params.skill_name},
@@ -281,7 +293,8 @@ async def orgo_star_computer(params: StarComputerInput) -> str:
     """Star or unstar a computer for quick access."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"computers/{params.computer_id}/star", api_key, json={"starred": params.starred})
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("POST", f"computers/{computer_id}/star", api_key, json={"starred": params.starred})
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -309,8 +322,9 @@ async def orgo_move_computer(params: MoveComputerInput) -> str:
     """Move a computer to a different workspace. The computer keeps all its data and state."""
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
         data = await api_request(
-            "PATCH", f"computers/{params.computer_id}/move", api_key,
+            "PATCH", f"computers/{computer_id}/move", api_key,
             json={"project_id": params.workspace_id},
         )
         return json.dumps(data, indent=2)
@@ -326,8 +340,9 @@ async def orgo_wait_computer(params: WaitComputerInput) -> str:
     """Wait for a computer to reach a target state (e.g. 'running' after start). Blocks until the state is reached or timeout."""
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
         data = await api_request(
-            "POST", f"computers/{params.computer_id}/wait", api_key,
+            "POST", f"computers/{computer_id}/wait", api_key,
             json={"state": params.state, "timeout": params.timeout},
             timeout=float(params.timeout + 10),
         )

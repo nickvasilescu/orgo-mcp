@@ -37,7 +37,7 @@ class CreateComputerInput(BaseModel):
 
 
 class ComputerIdInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
 
 
 # =============================================================================
@@ -45,7 +45,7 @@ class ComputerIdInput(BaseModel):
 # =============================================================================
 
 class ClickInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     x: int = Field(..., ge=0, description="X coordinate (pixels from left)")
     y: int = Field(..., ge=0, description="Y coordinate (pixels from top)")
     button: Literal["left", "right"] = Field(default="left", description="Mouse button")
@@ -53,23 +53,23 @@ class ClickInput(BaseModel):
 
 
 class TypeInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     text: str = Field(..., description="Text to type at cursor position", min_length=1)
 
 
 class KeyInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     key: str = Field(..., description="Key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab, ctrl+shift+s", min_length=1)
 
 
 class ScrollInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     direction: Literal["up", "down"] = Field(..., description="Scroll direction")
     amount: int = Field(default=3, ge=1, le=20, description="Scroll clicks (1-20)")
 
 
 class DragInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     start_x: int = Field(..., ge=0, description="Start X coordinate")
     start_y: int = Field(..., ge=0, description="Start Y coordinate")
     end_x: int = Field(..., ge=0, description="End X coordinate")
@@ -82,12 +82,12 @@ class DragInput(BaseModel):
 # =============================================================================
 
 class BashInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     command: str = Field(..., description="Bash command to execute", min_length=1)
 
 
 class ExecInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     code: str = Field(..., description="Python code to execute", min_length=1)
     timeout: int = Field(default=10, ge=1, le=300, description="Timeout in seconds")
 
@@ -102,7 +102,7 @@ class ListFilesInput(BaseModel):
 
 
 class ExportFileInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID (must be running)", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     path: str = Field(..., description="Path on computer (e.g. 'Desktop/report.pdf', '~/Documents/data.csv')", min_length=1)
 
 
@@ -123,7 +123,7 @@ class FileIdInput(BaseModel):
 # =============================================================================
 
 class CompletionsInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID (must be running)", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     instruction: str = Field(..., description="What the AI agent should do (natural language)", min_length=1)
     model: str = Field(default="claude-sonnet-4.6", description="Model: claude-sonnet-4.6 or claude-opus-4.6")
     thread_id: Optional[str] = Field(default=None, description="Thread ID to continue a previous conversation")
@@ -136,7 +136,7 @@ class CompletionsInput(BaseModel):
 # =============================================================================
 
 class ListThreadsInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID to list threads for", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
 
 
 class ThreadIdInput(BaseModel):
@@ -148,7 +148,7 @@ class ThreadIdInput(BaseModel):
 # =============================================================================
 
 class StartStreamInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID (must be running)", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     connection_name: str = Field(..., description="Name of pre-configured RTMP connection (set up at orgo.ai)", min_length=1)
 
 
@@ -157,13 +157,13 @@ class StartStreamInput(BaseModel):
 # =============================================================================
 
 class CloneComputerInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID to clone (uses fly_instance_id internally)", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID to clone (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     name: Optional[str] = Field(default=None, description="Name for the cloned computer (defaults to '{original}-clone')")
     workspace_id: Optional[str] = Field(default=None, description="Target workspace ID (defaults to same workspace as source)")
 
 
 class ResizeComputerInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     cpu: Optional[int] = Field(default=None, description="New CPU cores (1, 2, 4, 8, 16)")
     ram: Optional[int] = Field(default=None, description="New RAM in GB (4, 8, 16, 32, 64)")
     disk_size_gb: Optional[int] = Field(default=None, description="New disk size in GB")
@@ -171,18 +171,18 @@ class ResizeComputerInput(BaseModel):
 
 
 class AutoStopInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     minutes: Optional[int] = Field(default=None, ge=0, description="Auto-stop after N minutes idle. 0 to disable. Free tier always enforces 15min.")
 
 
 class SkillInstallInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID (must be running)", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     skill_name: str = Field(..., description="Name for the skill being installed", min_length=1)
     files_base64: dict[str, str] = Field(..., description="Map of filename -> base64-encoded content for skill files (e.g. {'SKILL.md': '...', 'script.py': '...'})")
 
 
 class StarComputerInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     starred: bool = Field(default=True, description="True to star, false to unstar")
 
 
@@ -218,7 +218,7 @@ class TemplateStarInput(BaseModel):
 # =============================================================================
 
 class MoveComputerInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID to move", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID to move (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     workspace_id: str = Field(..., description="Target workspace ID to move the computer into", min_length=1)
 
 
@@ -227,7 +227,7 @@ class MoveComputerInput(BaseModel):
 # =============================================================================
 
 class WaitComputerInput(BaseModel):
-    computer_id: str = Field(..., description="Computer ID to wait on", min_length=1)
+    computer_id: Optional[str] = Field(default=None, description="Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)")
     state: Literal["running", "stopped"] = Field(default="running", description="Target state to wait for")
     timeout: int = Field(default=60, ge=1, le=300, description="Max seconds to wait")
 

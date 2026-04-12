@@ -1,8 +1,12 @@
-"""API key resolution for Orgo MCP.
+"""API key and computer ID resolution for Orgo MCP.
 
 Supports two modes:
 - HTTP transport: key from X-Orgo-API-Key request header (via MCP context)
 - stdio transport: key from ORGO_API_KEY environment variable
+
+Computer ID resolution:
+- Explicit computer_id parameter (always wins)
+- ORGO_DEFAULT_COMPUTER_ID environment variable (fallback)
 """
 
 import os
@@ -45,4 +49,24 @@ def get_current_api_key(mcp_server=None) -> str:
     raise ValueError(
         "API key required. HTTP: include X-Orgo-API-Key header. "
         "stdio: set ORGO_API_KEY env var. Get your key at https://orgo.ai"
+    )
+
+
+def resolve_computer_id(computer_id: Optional[str] = None) -> str:
+    """Resolve computer_id from explicit param or ORGO_DEFAULT_COMPUTER_ID env var.
+
+    Priority:
+    1. Explicit computer_id parameter
+    2. ORGO_DEFAULT_COMPUTER_ID environment variable
+    """
+    if computer_id:
+        return computer_id
+
+    default_id = os.environ.get("ORGO_DEFAULT_COMPUTER_ID")
+    if default_id:
+        return default_id
+
+    raise ValueError(
+        "computer_id required. Either pass it explicitly or set "
+        "ORGO_DEFAULT_COMPUTER_ID env var."
     )

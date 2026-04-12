@@ -3,7 +3,7 @@
 import json
 
 from orgo_mcp.server import mcp
-from orgo_mcp.auth import get_current_api_key
+from orgo_mcp.auth import get_current_api_key, resolve_computer_id
 from orgo_mcp.client import api_request
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import ComputerIdInput
@@ -18,7 +18,8 @@ async def orgo_vnc_password(params: ComputerIdInput) -> str:
     Used for VNC clients, terminal WebSocket, and the orgo-vnc React component."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"computers/{params.computer_id}/vnc-password", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await api_request("GET", f"computers/{computer_id}/vnc-password", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)

@@ -9,7 +9,7 @@ import json
 import httpx
 
 from orgo_mcp.server import mcp
-from orgo_mcp.auth import get_current_api_key
+from orgo_mcp.auth import get_current_api_key, resolve_computer_id
 from orgo_mcp.client import ORGO_V1_BASE
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import CompletionsInput
@@ -31,11 +31,12 @@ async def orgo_completions(params: CompletionsInput) -> str:
     """
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
 
         body = {
             "model": params.model,
             "messages": [{"role": "user", "content": params.instruction}],
-            "computer_id": params.computer_id,
+            "computer_id": computer_id,
         }
         if params.thread_id:
             body["thread_id"] = params.thread_id

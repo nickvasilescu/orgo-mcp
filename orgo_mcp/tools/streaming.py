@@ -6,7 +6,7 @@ Requires pre-configured RTMP connections in your Orgo account settings.
 import json
 
 from orgo_mcp.server import mcp
-from orgo_mcp.auth import get_current_api_key
+from orgo_mcp.auth import get_current_api_key, resolve_computer_id
 from orgo_mcp.client import computer_action
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import StartStreamInput, ComputerIdInput
@@ -20,8 +20,9 @@ async def orgo_start_stream(params: StartStreamInput) -> str:
     """Start RTMP streaming from a computer to a pre-configured connection. One stream per computer."""
     try:
         api_key = get_current_api_key(mcp)
+        computer_id = resolve_computer_id(params.computer_id)
         data = await computer_action(
-            "POST", params.computer_id, "stream/start", api_key,
+            "POST", computer_id, "stream/start", api_key,
             json={"connection_name": params.connection_name},
         )
         return json.dumps(data, indent=2)
@@ -37,7 +38,8 @@ async def orgo_stream_status(params: ComputerIdInput) -> str:
     """Get current streaming status: idle, streaming, or terminated."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await computer_action("GET", params.computer_id, "stream/status", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await computer_action("GET", computer_id, "stream/status", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -51,7 +53,8 @@ async def orgo_stop_stream(params: ComputerIdInput) -> str:
     """Stop an active RTMP stream."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await computer_action("POST", params.computer_id, "stream/stop", api_key)
+        computer_id = resolve_computer_id(params.computer_id)
+        data = await computer_action("POST", computer_id, "stream/stop", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)

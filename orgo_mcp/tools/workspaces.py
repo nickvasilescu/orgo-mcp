@@ -24,7 +24,7 @@ async def orgo_list_workspaces() -> str:
     """List all workspaces in your Orgo account. Returns workspace IDs, names, and computer counts."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", "workspaces", api_key)
+        data = await api_request("GET", "projects", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -38,7 +38,7 @@ async def orgo_create_workspace(params: CreateWorkspaceInput) -> str:
     """Create a new workspace. Workspace names must be unique. Returns the workspace ID."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", "workspaces", api_key, json={"name": params.name})
+        data = await api_request("POST", "projects", api_key, json={"name": params.name})
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -52,7 +52,7 @@ async def orgo_get_workspace(params: WorkspaceIdInput) -> str:
     """Get workspace details including its computers. Returns workspace info and computer list."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"workspaces/{params.workspace_id}", api_key)
+        data = await api_request("GET", f"projects/{params.workspace_id}", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -66,7 +66,7 @@ async def orgo_delete_workspace(params: WorkspaceIdInput) -> str:
     """Delete a workspace and ALL its computers permanently. Cannot be undone."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("DELETE", f"workspaces/{params.workspace_id}", api_key)
+        data = await api_request("POST", f"projects/{params.workspace_id}/delete", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -80,7 +80,7 @@ async def orgo_workspace_members(params: WorkspaceMembersInput) -> str:
     """List all members of a workspace including owner and invited members with their roles."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"workspaces/{params.workspace_id}/members", api_key)
+        data = await api_request("GET", f"projects/{params.workspace_id}/members", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -94,7 +94,7 @@ async def orgo_workspace_invite(params: WorkspaceInviteInput) -> str:
     """Invite a user to a workspace by email. Only workspace owners can send invites."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"workspaces/{params.workspace_id}/invite", api_key, json={
+        data = await api_request("POST", f"projects/{params.workspace_id}/invite", api_key, json={
             "email": params.email,
             "permission": params.permission,
         })
@@ -111,7 +111,7 @@ async def orgo_workspace_by_name(params: WorkspaceByNameInput) -> str:
     """Look up a workspace by name instead of ID. Returns workspace details if found."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("GET", f"workspaces/by-name/{params.name}", api_key)
+        data = await api_request("GET", f"projects/by-name/{params.name}", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -125,7 +125,7 @@ async def orgo_start_workspace(params: WorkspaceIdInput) -> str:
     """Start all computers in a workspace. Idempotent — already-running computers are unaffected."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"workspaces/{params.workspace_id}/start", api_key)
+        data = await api_request("POST", f"projects/{params.workspace_id}/start", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -139,7 +139,7 @@ async def orgo_stop_workspace(params: WorkspaceIdInput) -> str:
     """Stop all computers in a workspace. State is preserved. Stopped computers don't incur charges."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"workspaces/{params.workspace_id}/stop", api_key)
+        data = await api_request("POST", f"projects/{params.workspace_id}/stop", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -153,7 +153,7 @@ async def orgo_restart_workspace(params: WorkspaceIdInput) -> str:
     """Restart all computers in a workspace."""
     try:
         api_key = get_current_api_key(mcp)
-        data = await api_request("POST", f"workspaces/{params.workspace_id}/restart", api_key)
+        data = await api_request("POST", f"projects/{params.workspace_id}/restart", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
