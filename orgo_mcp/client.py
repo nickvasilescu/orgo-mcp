@@ -58,8 +58,20 @@ async def _get_computer_connection(computer_id: str, api_key: str) -> tuple[str,
         info_resp.raise_for_status()
         vnc_resp.raise_for_status()
 
-    direct_url = info_resp.json().get("url", "").rstrip("/")
+    info = info_resp.json()
     vnc_password = vnc_resp.json().get("password", "")
+
+    # Resolve the correct API URL from instance_details when available.
+    # The top-level `url` field is the noVNC web proxy, NOT the VM API endpoint.
+    # Metal VMs expose the API on a separate port stored in instance_details.apiPort.
+    direct_url = ""
+    details = info.get("instance_details") or {}
+    api_port = details.get("apiPort")
+    host = details.get("publicHost") or details.get("vncHost")
+    if api_port and host:
+        direct_url = f"http://{host}:{api_port}"
+    else:
+        direct_url = info.get("url", "").rstrip("/")
 
     if not direct_url or not vnc_password:
         raise RuntimeError(f"Could not resolve connection for computer {computer_id}")
