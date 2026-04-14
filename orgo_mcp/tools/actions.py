@@ -22,7 +22,11 @@ async def orgo_screenshot(params: ComputerIdInput) -> Image:
         computer_id = resolve_computer_id(params.computer_id)
         data = await computer_action("GET", computer_id, "screenshot", api_key)
         image_b64 = data.get("image", "")
-        return Image(data=base64.b64decode(image_b64), format="png")
+        image_b64_clean = image_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "")
+        pad = len(image_b64_clean) % 4
+        if pad:
+            image_b64_clean += "=" * (4 - pad)
+        return Image(data=base64.b64decode(image_b64_clean), format="png")
     except Exception as e:
         raise RuntimeError(handle_orgo_error(e))
 
