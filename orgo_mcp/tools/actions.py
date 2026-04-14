@@ -20,7 +20,7 @@ async def orgo_screenshot(params: ComputerIdInput) -> Image:
     try:
         api_key = get_current_api_key(mcp)
         computer_id = resolve_computer_id(params.computer_id)
-        data = await computer_action("GET", computer_id, "screenshot", api_key)
+        data = await computer_action("GET", computer_id, "screenshot", api_key, direct=True)
         image_b64 = data.get("image", "")
         image_b64_clean = image_b64.strip().replace("\n", "").replace("\r", "").replace(" ", "")
         pad = len(image_b64_clean) % 4

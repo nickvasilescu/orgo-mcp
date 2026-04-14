@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "orgo-mcp"
-version = "2.1.1"
+version = "2.2.0"
 description = "MCP server for Orgo virtual computer control — workspace, agent, and VM management"
 readme = "README.md"
 license = "MIT"

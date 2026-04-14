@@ -9,7 +9,7 @@ import asyncio
 
 from orgo_mcp.server import mcp
 from orgo_mcp.auth import get_current_api_key, resolve_computer_id
-from orgo_mcp.client import api_request
+from orgo_mcp.client import api_request, resolve_fly_instance_id
 from orgo_mcp.errors import handle_orgo_error
 from orgo_mcp.models import (
     ListComputersInput, CreateComputerInput, ComputerIdInput,
@@ -126,7 +126,8 @@ async def orgo_start_computer(params: ComputerIdInput) -> str:
     try:
         api_key = get_current_api_key(mcp)
         computer_id = resolve_computer_id(params.computer_id)
-        data = await api_request("POST", f"computers/{computer_id}/start", api_key)
+        fly_id = await resolve_fly_instance_id(computer_id, api_key)
+        data = await api_request("POST", f"computers/{fly_id}/start", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -141,7 +142,8 @@ async def orgo_stop_computer(params: ComputerIdInput) -> str:
     try:
         api_key = get_current_api_key(mcp)
         computer_id = resolve_computer_id(params.computer_id)
-        data = await api_request("POST", f"computers/{computer_id}/stop", api_key)
+        fly_id = await resolve_fly_instance_id(computer_id, api_key)
+        data = await api_request("POST", f"computers/{fly_id}/stop", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
@@ -156,7 +158,8 @@ async def orgo_restart_computer(params: ComputerIdInput) -> str:
     try:
         api_key = get_current_api_key(mcp)
         computer_id = resolve_computer_id(params.computer_id)
-        data = await api_request("POST", f"computers/{computer_id}/restart", api_key)
+        fly_id = await resolve_fly_instance_id(computer_id, api_key)
+        data = await api_request("POST", f"computers/{fly_id}/restart", api_key)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)

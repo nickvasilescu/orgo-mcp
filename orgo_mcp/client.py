@@ -63,7 +63,7 @@ async def _get_vnc_password(computer_id: str, api_key: str) -> str:
     return password
 
 
-async def computer_action(
+async def _direct_vm_request(
     method: str,
     computer_id: str,
     endpoint: str,
@@ -71,33 +71,14 @@ async def computer_action(
     json: dict = None,
     timeout: float = 30.0,
 ) -> dict:
-    """Make an authenticated request to a computer via the platform API proxy.
+    """Make a request directly to the VM, bypassing the platform proxy.
 
-    Routes through /api/computers/{id}/{endpoint} which handles VM port
-    resolution internally. Falls back to direct VM connection if the proxy
-    returns auth errors (e.g. workspace API keys not matching platform keys).
+    Resolves the VM's direct API URL from instance_details and authenticates
+    with the VNC password.
     """
-    # Try platform API proxy first — handles Metal/Fly port resolution
-    try:
-        return await api_request(
-            method,
-            f"computers/{computer_id}/{endpoint}",
-            api_key,
-            json=json,
-            timeout=timeout,
-        )
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code not in (401, 403):
-            raise
-        # Auth failed on platform proxy — fall back to direct VM connection
-
-    # Fallback: direct connection using VNC password + instance_details
     vnc_password = await _get_vnc_password(computer_id, api_key)
     info = await api_request("GET", f"computers/{computer_id}", api_key, timeout=15.0)
 
-    # Resolve the correct API URL from instance_details when available.
-    # The top-level `url` field is the noVNC web proxy, NOT the VM API endpoint.
-    # Metal VMs expose the API on a separate port stored in instance_details.apiPort.
     details = info.get("instance_details") or {}
     api_port = details.get("apiPort")
     host = details.get("publicHost") or details.get("vncHost")
@@ -120,3 +101,60 @@ async def computer_action(
         )
         response.raise_for_status()
         return response.json()
+
+
+async def computer_action(
+    method: str,
+    computer_id: str,
+    endpoint: str,
+    api_key: str,
+    json: dict = None,
+    timeout: float = 30.0,
+    direct: bool = False,
+) -> dict:
+    """Make an authenticated request to a computer via the platform API proxy.
+
+    Routes through /api/computers/{id}/{endpoint} which handles VM port
+    resolution internally. Falls back to direct VM connection if the proxy
+    returns errors or is unreachable.
+
+    Set direct=True to bypass the proxy entirely (required for screenshot
+    since the proxy transforms the response into a storage URL).
+    """
+    # Direct mode: skip proxy, go straight to VM
+    if direct:
+        return await _direct_vm_request(method, computer_id, endpoint, api_key, json=json, timeout=timeout)
+
+    # Try platform API proxy first — handles Metal/Fly port resolution
+    try:
+        return await api_request(
+            method,
+            f"computers/{computer_id}/{endpoint}",
+            api_key,
+            json=json,
+            timeout=timeout,
+        )
+    except httpx.HTTPStatusError as e:
+        # Only raise on client errors that aren't auth-related and aren't server errors
+        status = e.response.status_code
+        if status < 500 and status not in (401, 403):
+            raise
+        # Auth errors (401/403) and server errors (5xx) -> fall back to direct
+    except (httpx.ConnectError, httpx.TimeoutException):
+        # Connection refused (stale ports after restart) or timeout -> fall back to direct
+        pass
+
+    # Fallback: direct connection using VNC password + instance_details
+    return await _direct_vm_request(method, computer_id, endpoint, api_key, json=json, timeout=timeout)
+
+
+async def resolve_fly_instance_id(computer_id: str, api_key: str) -> str:
+    """Resolve a computer UUID to its fly_instance_id.
+
+    The platform stop/restart/start endpoints expect fly_instance_id, not UUID.
+    """
+    data = await api_request("GET", f"computers/{computer_id}", api_key, timeout=15.0)
+    fly_id = data.get("fly_instance_id")
+    if not fly_id:
+        raise RuntimeError(f"Computer {computer_id} has no fly_instance_id")
+    return fly_id
