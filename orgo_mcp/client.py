@@ -77,7 +77,11 @@ async def _direct_vm_request(
     with the VNC password.
     """
     vnc_password = await _get_vnc_password(computer_id, api_key)
-    info = await api_request("GET", f"computers/{computer_id}", api_key, timeout=15.0)
+
+    # Use ensure-running instead of GET /computers/{id} because the GET
+    # endpoint doesn't return instance_details (which has the correct apiPort).
+    # Ports change on restart, and the top-level url field goes stale.
+    info = await api_request("POST", f"computers/{computer_id}/ensure-running", api_key, timeout=15.0)
 
     details = info.get("instance_details") or {}
     api_port = details.get("apiPort")
