@@ -155,8 +155,12 @@ async def computer_action(
 async def resolve_fly_instance_id(computer_id: str, api_key: str) -> str:
     """Resolve a computer UUID to its fly_instance_id.
 
-    The platform stop/restart/start endpoints expect fly_instance_id, not UUID.
+    The platform clone/stop/restart/start endpoints expect fly_instance_id, not UUID.
+    If the input is already a short fly ID (not a UUID), returns it as-is.
     """
+    # Short IDs (8 hex chars, no dashes) are already fly_instance_ids
+    if len(computer_id) <= 12 and "-" not in computer_id:
+        return computer_id
     data = await api_request("GET", f"computers/{computer_id}", api_key, timeout=15.0)
     fly_id = data.get("fly_instance_id")
     if not fly_id:

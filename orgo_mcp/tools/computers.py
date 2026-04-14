@@ -174,12 +174,13 @@ async def orgo_clone_computer(params: CloneComputerInput) -> str:
     try:
         api_key = get_current_api_key(mcp)
         computer_id = resolve_computer_id(params.computer_id)
+        fly_id = await resolve_fly_instance_id(computer_id, api_key)
         body = {}
         if params.name:
             body["name"] = params.name
         if params.workspace_id:
             body["targetProjectId"] = params.workspace_id
-        data = await api_request("POST", f"computers/{computer_id}/clone", api_key, json=body, timeout=120.0)
+        data = await api_request("POST", f"computers/{fly_id}/clone", api_key, json=body, timeout=120.0)
         return json.dumps(data, indent=2)
     except Exception as e:
         return handle_orgo_error(e)
