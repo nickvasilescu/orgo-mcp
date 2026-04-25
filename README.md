@@ -1,127 +1,45 @@
 # Orgo MCP Server
 
-An MCP (Model Context Protocol) server that gives AI agents the ability to control virtual computers through [Orgo](https://orgo.ai).
+An MCP (Model Context Protocol) server that gives AI agents the ability to control virtual computers through [Orgo](https://orgo.ai). Works with Claude Code, Claude Desktop, and any MCP client.
 
----
+## Quick Start
 
-## Get Started in 60 Seconds
+### 1. Get Your API Key
 
-```
-+-------------------------------------------------------------+
-|  STEP 1: Get Key  >  STEP 2: Configure  >  STEP 3: Use!    |
-+-------------------------------------------------------------+
-```
+Sign up or log in at [orgo.ai](https://orgo.ai) and copy your API key from **Settings > API Keys**. It starts with `sk_live_`.
 
-### Step 1: Get Your API Key
+### 2. Connect to Claude
 
-| Action | Link |
-|--------|------|
-| **New user?** | [Sign up at orgo.ai](https://orgo.ai) |
-| **Existing user?** | [Go to Dashboard](https://orgo.ai/dashboard) |
-
-**Where to find your key:**
-```
-+----------------------------------------------------------+
-|  orgo.ai Dashboard                                       |
-+----------------------------------------------------------+
-|                                                          |
-|   Settings  >  API Keys  >  [ Copy Key ]                 |
-|                                                          |
-|   Your key looks like:  sk_live_abc123...                |
-|                         ^^^^^^^^                         |
-|                         Always starts with sk_live_      |
-|                                                          |
-+----------------------------------------------------------+
-```
-
-> **Tip:** Keep your API key private - never commit it to git!
-
----
-
-### Step 2: Configure Your Client
-
-Choose your setup method:
-
-<details open>
-<summary><strong>Claude Code (CLI) - Recommended</strong></summary>
-
-Run this single command:
+**Claude Code (recommended):**
 
 ```bash
+# Option A: Use the hosted server (no install needed)
 claude mcp add --transport http orgo https://orgo-mcp.onrender.com/mcp \
-  --header "X-Orgo-API-Key: YOUR_API_KEY"
-#                           ^^^^^^^^^^^^^
-#                           Replace this with your actual key!
+  --header "X-Orgo-API-Key: sk_live_YOUR_KEY_HERE"
+
+# Option B: Run locally via npx (stdio transport)
+claude mcp add orgo -- npx -y @orgo-ai/mcp
+# Then set: ORGO_API_KEY=sk_live_YOUR_KEY_HERE
 ```
 
-**Example with a real key format:**
-```bash
-claude mcp add --transport http orgo https://orgo-mcp.onrender.com/mcp \
-  --header "X-Orgo-API-Key: sk_live_abc123xyz789"
-```
+**Claude Desktop:**
 
-</details>
-
-<details>
-<summary><strong>Claude Desktop (macOS)</strong></summary>
-
-**1. Open your config file:**
-```bash
-open ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-**2. Add this configuration:**
 ```json
 {
   "mcpServers": {
     "orgo": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://orgo-mcp.onrender.com/mcp",
-               "--header", "X-Orgo-API-Key:sk_live_YOUR_KEY_HERE"]
+      "args": ["-y", "@orgo-ai/mcp"],
+      "env": {
+        "ORGO_API_KEY": "sk_live_YOUR_KEY_HERE"
+      }
     }
   }
 }
 ```
 
-> **Important:** No space after the colon in `X-Orgo-API-Key:sk_live_...`
+**Team Project (`.mcp.json`):**
 
-**3. Restart Claude Desktop**
-
-</details>
-
-<details>
-<summary><strong>Claude Desktop (Windows)</strong></summary>
-
-**1. Open your config file:**
-```
-%APPDATA%\Claude\claude_desktop_config.json
-```
-
-**2. Add this configuration:**
-```json
-{
-  "mcpServers": {
-    "orgo": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://orgo-mcp.onrender.com/mcp",
-               "--header", "X-Orgo-API-Key:sk_live_YOUR_KEY_HERE"]
-    }
-  }
-}
-```
-
-> **Important:** No space after the colon in `X-Orgo-API-Key:sk_live_...`
-
-**3. Restart Claude Desktop**
-
-</details>
-
-<details>
-<summary><strong>Team Project (.mcp.json)</strong></summary>
-
-For sharing with your team without exposing keys:
-
-**1. Create `.mcp.json` in your project root:**
 ```json
 {
   "mcpServers": {
@@ -136,22 +54,10 @@ For sharing with your team without exposing keys:
 }
 ```
 
-**2. Each team member sets their own key:**
-```bash
-# Add to ~/.bashrc or ~/.zshrc for persistence
-export ORGO_API_KEY="sk_live_your_personal_key"
-```
-
-</details>
-
----
-
-### Step 3: Start Using!
-
-Try these commands in Claude:
+### 3. Start Using
 
 ```
-"Create a Linux computer with 4GB RAM"
+"Create a Linux computer with 8GB RAM"
 "Take a screenshot of my computer"
 "Run 'ls -la' on the computer"
 "Type 'hello world' and press Enter"
@@ -159,113 +65,64 @@ Try these commands in Claude:
 
 ---
 
-## Troubleshooting API Key Issues
-
-<details open>
-<summary><strong>Common Problems and Quick Fixes</strong></summary>
-
-| Error Message | What is Wrong | How to Fix |
-|--------------|--------------|------------|
-| `Invalid API key` | Key format is wrong | Make sure it starts with `sk_live_` |
-| `X-Orgo-API-Key header required` | Key not passed correctly | Check for extra spaces in header |
-| `401 Unauthorized` | Key is expired or invalid | Generate a new key at [orgo.ai](https://orgo.ai/dashboard) |
-
-**Quick validation checklist:**
-```
-[ ] Key starts with: sk_live_
-[ ] No extra spaces before/after the key
-[ ] Key copied completely (no truncation)
-[ ] Quotes are straight " not curly
-```
-
-</details>
-
----
-
-## Features (34 tools)
+## Tools (40 total)
 
 | Category | Tools |
 |----------|-------|
-| **Projects** | `orgo_list_projects`, `orgo_create_project`, `orgo_get_project`, `orgo_delete_project`, `orgo_start_project`, `orgo_stop_project`, `orgo_restart_project` |
-| **Computers** | `orgo_list_computers`, `orgo_create_computer`, `orgo_get_computer`, `orgo_start_computer`, `orgo_stop_computer`, `orgo_restart_computer`, `orgo_delete_computer` |
-| **Actions** | `orgo_screenshot`, `orgo_click`, `orgo_double_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag`, `orgo_wait` |
-| **Shell** | `orgo_bash`, `orgo_exec` |
-| **Files** | `orgo_list_files`, `orgo_upload_file`, `orgo_export_file`, `orgo_download_file`, `orgo_delete_file` |
+| **Workspaces** | `orgo_list_workspaces`, `orgo_create_workspace`, `orgo_get_workspace`, `orgo_workspace_by_name` |
+| **Computers** | `orgo_list_computers`, `orgo_create_computer`, `orgo_get_computer`, `orgo_delete_computer`, `orgo_start_computer`, `orgo_stop_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer` |
+| **Actions** | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag` |
+| **Shell** | `orgo_bash` (WebSocket terminal preferred, REST fallback), `orgo_exec` (Python) |
+| **Files** | `orgo_list_files`, `orgo_upload_file`, `orgo_export_file`, `orgo_download_file` |
+| **AI Agent** | `orgo_completions` (autonomous agent with screen vision) |
+| **Threads** | `orgo_list_threads`, `orgo_get_thread`, `orgo_delete_thread` |
 | **Streaming** | `orgo_start_stream`, `orgo_stream_status`, `orgo_stop_stream` |
-| **AI** | `orgo_list_ai_models`, `orgo_ai_completion` |
+| **Templates** | `orgo_list_templates`, `orgo_starred_templates`, `orgo_star_template` |
+| **Access** | `orgo_vnc_password` |
+| **Account** | `orgo_get_profile`, `orgo_get_credits`, `orgo_get_transactions` |
 
 ---
 
-## Self-Hosting Options
+## Self-Hosting
 
-### Option 1: Local Development (stdio)
+### Local (stdio)
 
 ```bash
 git clone https://github.com/nickvasilescu/orgo-mcp.git
 cd orgo-mcp
-pip install -e .
-export ORGO_API_KEY="your_key"
-python orgo_mcp.py
+npm install
+export ORGO_API_KEY="sk_live_YOUR_KEY_HERE"
+npm start
 ```
 
-Add to `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "orgo": {
-      "command": "python3",
-      "args": ["/path/to/orgo-mcp/orgo_mcp.py"],
-      "env": {"ORGO_API_KEY": "your_key"}
-    }
-  }
-}
-```
-
-### Option 2: Local HTTP Server
+### Local (HTTP)
 
 ```bash
-pip install -e .
-MCP_TRANSPORT=http python orgo_mcp.py
+MCP_TRANSPORT=http npm start
+# Server at http://localhost:8000/mcp
+curl http://localhost:8000/health
 ```
 
-Server available at `http://localhost:8000/mcp`
-
-### Option 3: Docker
+### Docker
 
 ```bash
-# Build
 docker build -t orgo-mcp .
-
-# Run
-docker run -p 8000:8000 orgo-mcp
-
-# Or use docker-compose
-docker-compose up
+docker run -p 8000:8000 -e MCP_TRANSPORT=http orgo-mcp
 ```
 
-### Option 4: Deploy to Render.com
+### Render.com
 
-1. Fork this repository
-2. Go to [Render Dashboard](https://dashboard.render.com/blueprints)
-3. Click "New Blueprint Instance"
-4. Connect your GitHub repo
-5. Deploy!
+1. Fork this repo
+2. Go to [Render Dashboard](https://dashboard.render.com/blueprints) > New Blueprint Instance
+3. Connect your GitHub repo and deploy
 
-Your server will be at: `https://orgo-mcp-xxxx.onrender.com`
-
-### Option 5: Deploy to Fly.io
+### Fly.io
 
 ```bash
-# Install flyctl
-curl -L https://fly.io/install.sh | sh
-
-# Login and deploy
 fly auth login
 fly launch --no-deploy
 fly deploy
 ```
-
-Your server will be at: `https://orgo-mcp.fly.dev`
 
 ---
 
@@ -273,124 +130,49 @@ Your server will be at: `https://orgo-mcp.fly.dev`
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `ORGO_API_KEY` | -- | API key (required for stdio transport) |
+| `ORGO_DEFAULT_COMPUTER_ID` | -- | Default computer ID (skip passing on every call) |
 | `MCP_TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
 | `MCP_HOST` | `0.0.0.0` | HTTP bind address |
 | `MCP_PORT` / `PORT` | `8000` | HTTP port |
-| `ORGO_API_KEY` | - | API key (required for stdio transport) |
-| `CORS_ORIGINS` | `*` | Allowed origins (comma-separated) |
-
----
-
-## Usage Examples
-
-### Project Management
-
-```
-"Create a new project called 'qa-automation'"
-"List my Orgo projects"
-"Start all computers in project proj_123"
-"Delete project proj_123"
-```
-
-### Computer Management
-
-```
-"Create a new Linux computer called 'dev-box' with 4GB RAM"
-"Get details for computer abc123"
-"Start computer abc123"
-"Stop computer abc123"
-```
-
-### Screen Actions
-
-```
-"Take a screenshot of computer abc123"
-"Click at coordinates (500, 300)"
-"Type 'hello world'"
-"Press Enter"
-"Scroll down"
-```
-
-### Shell Commands
-
-```
-"Run 'ls -la' on computer abc123"
-"Execute Python code: print('hello')"
-```
-
-### File Operations
-
-```
-"List files on computer abc123"
-"Export file ~/Documents/report.pdf from computer abc123"
-"Upload file to computer abc123"
-```
-
-### Streaming
-
-```
-"Start streaming computer abc123 to Twitch"
-"Check stream status for computer abc123"
-"Stop streaming computer abc123"
-```
-
-### AI Completion
-
-```
-"List available AI models"
-"Run GPT-4 completion: 'Explain quantum computing'"
-```
-
----
-
-## Additional Troubleshooting
-
-### "Connection refused" Error
-
-- Cloud: Check `https://orgo-mcp.onrender.com/health`
-- Local: Ensure server is running on correct port
-- Check firewall/proxy settings
-
-### Claude Desktop Not Connecting
-
-- Restart Claude Desktop after config changes
-- Check config file syntax (valid JSON)
-- View logs: Help > Troubleshooting > Open Logs
-
-### Tools Not Appearing
-
-- Wait 10-30 seconds after connection
-- Check server logs for errors
-- Verify MCP server is listed in Claude settings
 
 ---
 
 ## Architecture
 
 ```
-Cloud Deployment:
-  Client (Claude) --> HTTPS --> Cloud Server --> Orgo API
-                     X-Orgo-API-Key header
+npx / stdio:
+  Claude  -->  stdio  -->  @orgo-ai/mcp  -->  Orgo API
+                           ORGO_API_KEY env var
 
-Local Deployment:
-  Client (Claude) --> stdio --> orgo_mcp.py --> Orgo API
-                     ORGO_API_KEY env var
+Cloud / HTTP:
+  Claude  -->  HTTPS  -->  orgo-mcp server  -->  Orgo API
+                           X-Orgo-API-Key header
+
+Shell commands (enhanced):
+  orgo_bash  -->  Terminal WebSocket (preferred)  -->  VM
+             \->  REST /bash API (fallback)       -->  VM
 ```
 
 ### Project Structure
 
 ```
 orgo-mcp/
-+-- orgo_mcp.py       # MCP server (34 tools, dual transport)
-+-- pyproject.toml    # Package configuration
-+-- Dockerfile        # Production container
-+-- docker-compose.yml # Local development
-+-- render.yaml       # Render.com deployment
-+-- fly.toml          # Fly.io deployment
-+-- .dockerignore     # Docker build exclusions
-+-- .env.example      # Environment template
-+-- README.md
-+-- LICENSE
+├── src/
+│   ├── index.ts          # Entry point (stdio/http transport selection)
+│   ├── server.ts         # McpServer instantiation + tool registration
+│   ├── auth.ts           # API key resolution (AsyncLocalStorage + env)
+│   ├── client.ts         # HTTP client (proxy + direct VM fallback)
+│   ├── terminal.ts       # WebSocket terminal (connection pool, keep-alive)
+│   ├── errors.ts         # Unified error handling
+│   ├── types.ts          # TypeScript interfaces
+│   └── tools/            # 11 tool modules (38 tools total)
+├── package.json
+├── tsconfig.json
+├── Dockerfile
+├── render.yaml
+├── fly.toml
+└── README.md
 ```
 
 ---
@@ -398,38 +180,35 @@ orgo-mcp/
 ## Development
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+npm install
+npm run dev          # Watch mode (recompile on changes)
+npm run build        # One-time build
+npm start            # Run built server
 
-# Format code
-black orgo_mcp.py
-
-# Lint
-ruff check orgo_mcp.py
-
-# Run tests
-pytest
-
-# Test HTTP transport locally
-MCP_TRANSPORT=http python orgo_mcp.py
-
-# Test health endpoint
+# Test HTTP transport
+MCP_TRANSPORT=http npm start
 curl http://localhost:8000/health
-
-# Test MCP endpoint
-curl -X POST http://localhost:8000/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-Orgo-API-Key: your_key" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 ```
+
+---
+
+## Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| `Invalid API key` | Ensure key starts with `sk_live_` |
+| `X-Orgo-API-Key header required` | Check header (no extra spaces) |
+| `computer_id required` | Pass `computer_id` or set `ORGO_DEFAULT_COMPUTER_ID` |
+| `Connection refused` | Check server is running; try `curl http://localhost:8000/health` |
+| Tools not appearing | Wait 10-30s after connection; check Claude MCP settings |
 
 ---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT -- see [LICENSE](LICENSE)
 
 ## Credits
 
-- [Orgo](https://orgo.ai) - Virtual computer infrastructure
-- [Anthropic](https://anthropic.com) - MCP protocol
+- [Orgo](https://orgo.ai) -- Virtual computer infrastructure
+- [Anthropic](https://anthropic.com) -- MCP protocol

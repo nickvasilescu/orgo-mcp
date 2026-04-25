@@ -1,0 +1,15 @@
+src/
+orgo_mcp/
+*.py
+__pycache__/
+.env
+.env.*
+!.env.example
+tsconfig.json
+docker-compose.yml
+fly.toml
+render.yaml
+Dockerfile
+CONTRIBUTING.md
+pyproject.toml
+.gitignore

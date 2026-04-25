@@ -11,24 +11,14 @@ services:
       target: runtime
     container_name: orgo-mcp-server
 
-    # Port mapping for HTTP transport
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
 
-    # Environment configuration
     environment:
-      # MCP transport mode: 'stdio' (default) or 'http' (for HTTP)
       - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
-      # Port for HTTP transport (only used when MCP_TRANSPORT=http)
       - PORT=${PORT:-8000}
-      # Python settings
-      - PYTHONUNBUFFERED=1
-      # Log level (optional)
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      # CORS origins (optional, comma-separated)
-      - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - NODE_ENV=production
 
-    # Resource limits for local development
     deploy:
       resources:
         limits:
@@ -38,23 +28,19 @@ services:
           cpus: "0.25"
           memory: 128M
 
-    # Health check configuration
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.settimeout(5); s.connect(('localhost', 8000)); s.close()"]
+      test: ["CMD", "node", "-e", "const http=require('http');const r=http.get('http://localhost:'+(process.env.PORT||8000)+'/health',s=>{process.exit(s.statusCode===200?0:1)});r.on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
 
-    # Restart policy
     restart: unless-stopped
 
-    # Security options
     security_opt:
       - no-new-privileges:true
     read_only: true
 
-    # Logging configuration
     logging:
       driver: "json-file"
       options:
@@ -63,26 +49,7 @@ services:
 
 # ==============================================================================
 # Usage:
-#
-# Build and run:
 #   docker-compose up --build
-#
-# Run in background:
-#   docker-compose up -d
-#
-# View logs:
 #   docker-compose logs -f
-#
-# Stop:
-#   docker-compose down
-#
-# Test health:
 #   curl http://localhost:8000/health
-#
-# Test MCP endpoint:
-#   curl -X POST http://localhost:8000/mcp \
-#     -H "Content-Type: application/json" \
-#     -H "X-Orgo-API-Key: your_api_key" \
-#     -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
-#
 # ==============================================================================
