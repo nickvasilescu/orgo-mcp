@@ -10,19 +10,19 @@ Sign up or log in at [orgo.ai](https://orgo.ai) and copy your API key from **Set
 
 ### 2. Connect to Claude
 
-**Claude Code (recommended):**
+**Claude Code — bash, zsh, cmd.exe:**
 
 ```bash
-# Option A: Use the hosted server (no install needed)
-claude mcp add --transport http orgo https://orgo-mcp.onrender.com/mcp \
-  --header "X-Orgo-API-Key: sk_live_YOUR_KEY_HERE"
-
-# Option B: Run locally via npx (stdio transport)
-claude mcp add orgo -- npx -y @orgo-ai/mcp
-# Then set: ORGO_API_KEY=sk_live_YOUR_KEY_HERE
+claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp
 ```
 
-**Claude Desktop:**
+**Claude Code — Windows PowerShell** (PowerShell mangles `--` when calling `.cmd` shims, so wrap with `cmd /c`):
+
+```powershell
+cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp"
+```
+
+**Claude Desktop** (edit `claude_desktop_config.json`):
 
 ```json
 {
@@ -31,14 +31,14 @@ claude mcp add orgo -- npx -y @orgo-ai/mcp
       "command": "npx",
       "args": ["-y", "@orgo-ai/mcp"],
       "env": {
-        "ORGO_API_KEY": "sk_live_YOUR_KEY_HERE"
+        "ORGO_API_KEY": "sk_live_YOUR_KEY"
       }
     }
   }
 }
 ```
 
-**Team Project (`.mcp.json`):**
+**Team Project — hosted HTTP server** (no install, share via `.mcp.json` in repo):
 
 ```json
 {
