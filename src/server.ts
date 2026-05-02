@@ -4,6 +4,9 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAllTools } from "./tools/index.js";
+import { getToolPolicySummary } from "./tools/policy.js";
+
+const VERSION = "4.0.0";
 
 const ORGO_MCP_INSTRUCTIONS = `
 # Orgo MCP -- Tool Selection Guide
@@ -44,6 +47,17 @@ Pixel-based tools (orgo_*) are the right choice for native apps, terminal window
 - **Screen Actions**: screenshot, click, type, key, scroll, drag
 - **Shell**: bash (WebSocket terminal preferred), exec (Python)
 - **Files**: list, upload, export, download
+
+## Production Policy Controls
+
+Operators can restrict the exposed tool surface without code changes:
+- ORGO_READ_ONLY=true exposes only tools marked read-only.
+- ORGO_TOOLSETS chooses tool groups: core, admin, screen, shell, files.
+- ORGO_ENABLED_TOOLS allowlists exact tool names.
+- ORGO_DISABLED_TOOLS removes exact tool names.
+
+Current policy:
+${getToolPolicySummary()}
 `.trim();
 
 /**
@@ -53,7 +67,7 @@ export function createOrgoMcpServer(): McpServer {
   const server = new McpServer(
     {
       name: "orgo-mcp",
-      version: "3.0.0",
+      version: VERSION,
     },
     {
       instructions: ORGO_MCP_INSTRUCTIONS,

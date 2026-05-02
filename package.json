@@ -1,6 +1,6 @@
 {
   "name": "@orgo-ai/mcp",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "MCP server for Orgo virtual computer control — works with Claude Code, Claude Desktop, and any MCP client",
   "type": "module",
   "main": "dist/index.js",
@@ -10,12 +10,18 @@
   "files": [
     "dist/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsc && shx chmod +x dist/index.js",
+    "clean": "shx rm -rf dist",
+    "build": "npm run clean && tsc && shx chmod +x dist/index.js",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
+    "test": "npm run build && node scripts/smoke-tools.mjs",
+    "test:http": "npm run build && node scripts/smoke-http.mjs",
+    "test:tools": "node scripts/smoke-tools.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
@@ -28,7 +34,7 @@
     "claude",
     "model-context-protocol"
   ],
-  "author": "Nick Vasilescu <spencer@orgo.ai>",
+  "author": "Orgo",
   "license": "MIT",
   "repository": {
     "type": "git",

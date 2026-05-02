@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and smoke test MCP tools
+        run: npm test
+
+      - name: Smoke test HTTP transport
+        run: npm run test:http
+
+      - name: Verify package contents
+        run: |
+          npm pack --dry-run --json --ignore-scripts > pack.json
+          cat pack.json
+          node <<'NODE'
+          const fs = require("node:fs");
+          const pack = JSON.parse(fs.readFileSync("pack.json", "utf8"));
+          const paths = pack[0].files.map((file) => file.path);
+          const mustInclude = ["dist/index.js", "README.md", "LICENSE", "SECURITY.md", "CHANGELOG.md"];
+          const bannedPrefixes = [
+            "orgo_mcp/",
+            "src/",
+            "scripts/",
+            ".github/",
+            "pyproject.toml",
+            "dist/tools/access",
+            "dist/tools/account",
+            "dist/tools/agent",
+            "dist/tools/threads",
+            "dist/tools/streaming",
+            "dist/tools/templates",
+          ];
+          for (const path of mustInclude) {
+            if (!paths.includes(path)) throw new Error(`Missing package file: ${path}`);
+          }
+          for (const path of paths) {
+            if (bannedPrefixes.some((prefix) => path.startsWith(prefix))) {
+              throw new Error(`Unexpected package file: ${path}`);
+            }
+          }
+          NODE
+
+      - name: Build Docker image
+        run: docker build -t orgo-mcp-ci .

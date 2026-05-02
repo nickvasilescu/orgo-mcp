@@ -8,6 +8,7 @@ import { getApiKey, resolveComputerId } from "../auth.js";
 import { computerAction } from "../client.js";
 import { handleError } from "../errors.js";
 import type { ScreenshotResponse } from "../types.js";
+import { registerOrgoTool } from "./registry.js";
 
 // Model coordinate space -- matches orgo-web's CUA
 const MODEL_WIDTH = 1280;
@@ -28,13 +29,21 @@ function scaleCoords(computerId: string, x: number, y: number): [number, number]
 }
 
 export function registerActionTools(server: McpServer): void {
-  server.tool(
-    "orgo_screenshot",
-    "Take a screenshot of the full VM display (all windows, desktop). Returns a JPEG image.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_screenshot",
+    title: "Take Screenshot",
+    description: "Take a screenshot of the full VM display (all windows, desktop). Returns an image.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
-    async ({ computer_id }) => {
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -70,20 +79,28 @@ export function registerActionTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_click",
-    "Click at pixel (x, y) coordinates on the VM display. Coordinates are in 1280x720 model space.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_click",
+    title: "Click",
+    description: "Click at pixel (x, y) coordinates on the VM display. Coordinates are in 1280x720 model space.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       x: z.number().int().min(0).describe("X coordinate (pixels from left)"),
       y: z.number().int().min(0).describe("Y coordinate (pixels from top)"),
       button: z.enum(["left", "right"]).default("left").describe("Mouse button"),
       double: z.boolean().default(false).describe("Double-click if true"),
     },
-    async ({ computer_id, x, y, button, double: dbl }) => {
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, x, y, button, double: dbl }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -96,17 +113,25 @@ export function registerActionTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_type",
-    "Type text at the current cursor position on the VM.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_type",
+    title: "Type Text",
+    description: "Type text at the current cursor position on the VM.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       text: z.string().min(1).describe("Text to type at cursor position"),
     },
-    async ({ computer_id, text }) => {
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, text }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -116,17 +141,25 @@ export function registerActionTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_key",
-    "Press a key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab, ctrl+shift+s, F1-F12.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_key",
+    title: "Press Key",
+    description: "Press a key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab, ctrl+shift+s, F1-F12.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       key: z.string().min(1).describe("Key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab"),
     },
-    async ({ computer_id, key }) => {
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, key }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -135,18 +168,26 @@ export function registerActionTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_scroll",
-    "Scroll the VM display up or down.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_scroll",
+    title: "Scroll",
+    description: "Scroll the VM display up or down.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       direction: z.enum(["up", "down"]).describe("Scroll direction"),
       amount: z.number().int().min(1).max(20).default(3).describe("Scroll clicks (1-20)"),
     },
-    async ({ computer_id, direction, amount }) => {
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, direction, amount }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -155,13 +196,14 @@ export function registerActionTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_drag",
-    "Drag from (start_x, start_y) to (end_x, end_y). Coordinates in 1280x720 model space.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_drag",
+    title: "Drag",
+    description: "Drag from (start_x, start_y) to (end_x, end_y). Coordinates in 1280x720 model space.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       start_x: z.number().int().min(0).describe("Start X coordinate"),
       start_y: z.number().int().min(0).describe("Start Y coordinate"),
@@ -169,7 +211,14 @@ export function registerActionTools(server: McpServer): void {
       end_y: z.number().int().min(0).describe("End Y coordinate"),
       duration: z.number().min(0.1).max(5.0).default(0.5).describe("Drag duration in seconds"),
     },
-    async ({ computer_id, start_x, start_y, end_x, end_y, duration }) => {
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, start_x, start_y, end_x, end_y, duration }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -191,6 +240,6 @@ export function registerActionTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 }

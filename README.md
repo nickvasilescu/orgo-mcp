@@ -1,28 +1,24 @@
 # Orgo MCP Server
 
-An MCP (Model Context Protocol) server that gives AI agents the ability to control virtual computers through [Orgo](https://orgo.ai). Works with Claude Code, Claude Desktop, and any MCP client.
+Official MCP server for controlling [Orgo](https://orgo.ai) cloud computers from Claude Code, Claude Desktop, and other Model Context Protocol clients.
+
+This package is TypeScript-first and ships as `@orgo-ai/mcp`.
 
 ## Quick Start
 
-### 1. Get Your API Key
+### 1. Get an Orgo API key
 
-Sign up or log in at [orgo.ai](https://orgo.ai) and copy your API key from **Settings > API Keys**. It starts with `sk_live_`.
+Sign up or log in at [orgo.ai](https://orgo.ai), then copy an API key from **Settings > API Keys**.
 
-### 2. Connect to Claude
+### 2. Add the MCP server
 
-**Claude Code — bash, zsh, cmd.exe:**
+Claude Code:
 
 ```bash
 claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp
 ```
 
-**Claude Code — Windows PowerShell** (PowerShell mangles `--` when calling `.cmd` shims, so wrap with `cmd /c`):
-
-```powershell
-cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp"
-```
-
-**Claude Desktop** (edit `claude_desktop_config.json`):
+Claude Desktop:
 
 ```json
 {
@@ -38,7 +34,7 @@ cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/
 }
 ```
 
-**Team Project — hosted HTTP server** (no install, share via `.mcp.json` in repo):
+Hosted Streamable HTTP server:
 
 ```json
 {
@@ -54,155 +50,175 @@ cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/
 }
 ```
 
-### 3. Start Using
+PowerShell users can wrap the Claude Code command because PowerShell may mangle `--` when it reaches npm shims:
 
-```
-"Create a Linux computer with 8GB RAM"
-"Take a screenshot of my computer"
-"Run 'ls -la' on the computer"
-"Type 'hello world' and press Enter"
+```powershell
+cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp"
 ```
 
----
+## Tools
 
-## Tools (24 total)
+The server exposes 24 focused tools.
 
-| Category | Tools |
-|----------|-------|
-| **Workspaces** | `orgo_list_workspaces`, `orgo_create_workspace`, `orgo_get_workspace`, `orgo_workspace_by_name` |
-| **Computers** | `orgo_list_computers`, `orgo_create_computer`, `orgo_get_computer`, `orgo_delete_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer` |
-| **Actions** | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag` |
-| **Shell** | `orgo_bash` (WebSocket terminal preferred, REST fallback), `orgo_exec` (Python) |
-| **Files** | `orgo_list_files`, `orgo_upload_file`, `orgo_export_file`, `orgo_download_file` |
+| Toolset | Tools |
+| --- | --- |
+| `core` | `orgo_list_workspaces`, `orgo_get_workspace`, `orgo_workspace_by_name`, `orgo_list_computers`, `orgo_get_computer` |
+| `admin` | `orgo_create_workspace`, `orgo_create_computer`, `orgo_delete_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer` |
+| `screen` | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag` |
+| `shell` | `orgo_bash`, `orgo_exec` |
+| `files` | `orgo_list_files`, `orgo_export_file`, `orgo_upload_file`, `orgo_download_file` |
 
----
+Each tool is registered with MCP annotations for `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
+
+Deliberately not exposed:
+
+- computer start/stop tools
+- VNC password access
+- account/profile/credits/transactions
+- autonomous agent/thread tools
+- RTMP streaming tools
+- template management tools
+
+## Production Safety Controls
+
+Use environment variables to restrict the exposed surface without changing client config.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ORGO_READ_ONLY` | `false` | When `true`, only tools annotated as read-only are registered. |
+| `ORGO_TOOLSETS` | `core,admin,screen,shell,files` | Comma-separated toolsets to expose. Example: `core,screen,files`. |
+| `ORGO_ENABLED_TOOLS` | all registered tools | Exact comma-separated allowlist. Applied before `ORGO_DISABLED_TOOLS`. |
+| `ORGO_DISABLED_TOOLS` | none | Exact comma-separated denylist. |
+
+Examples:
+
+```bash
+# Observation-only mode
+ORGO_READ_ONLY=true npx -y @orgo-ai/mcp
+
+# Browserless VM control without shell access
+ORGO_TOOLSETS=core,screen,files npx -y @orgo-ai/mcp
+
+# Keep shell enabled, but remove bash
+ORGO_TOOLSETS=shell ORGO_DISABLED_TOOLS=orgo_bash npx -y @orgo-ai/mcp
+```
+
+Read-only mode currently exposes:
+
+```text
+orgo_list_workspaces
+orgo_get_workspace
+orgo_workspace_by_name
+orgo_list_computers
+orgo_get_computer
+orgo_screenshot
+orgo_list_files
+orgo_download_file
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `ORGO_API_KEY` | none | Required for stdio transport. HTTP deployments receive user keys via `X-Orgo-API-Key`. |
+| `ORGO_DEFAULT_COMPUTER_ID` | none | Default computer ID so tool calls can omit `computer_id`. |
+| `MCP_TRANSPORT` | `stdio` | `stdio`, `http`, or `streamable-http`. |
+| `MCP_HOST` | `0.0.0.0` | HTTP bind address. |
+| `MCP_PORT` / `PORT` | `8000` | HTTP port. |
 
 ## Self-Hosting
 
-### Local (stdio)
+Local stdio:
 
 ```bash
 git clone https://github.com/nickvasilescu/orgo-mcp.git
 cd orgo-mcp
 npm install
-export ORGO_API_KEY="sk_live_YOUR_KEY_HERE"
-npm start
+ORGO_API_KEY=sk_live_YOUR_KEY npm start
 ```
 
-### Local (HTTP)
+Local HTTP:
 
 ```bash
+npm install
+npm run build
 MCP_TRANSPORT=http npm start
-# Server at http://localhost:8000/mcp
 curl http://localhost:8000/health
 ```
 
-### Docker
+Docker:
 
 ```bash
 docker build -t orgo-mcp .
 docker run -p 8000:8000 -e MCP_TRANSPORT=http orgo-mcp
 ```
 
-### Render.com
+Render:
 
-1. Fork this repo
-2. Go to [Render Dashboard](https://dashboard.render.com/blueprints) > New Blueprint Instance
-3. Connect your GitHub repo and deploy
+1. Fork this repo.
+2. Create a Render Blueprint from `render.yaml`.
+3. Connect clients to `https://YOUR_RENDER_HOST/mcp` with an `X-Orgo-API-Key` header.
 
-### Fly.io
-
-```bash
-fly auth login
-fly launch --no-deploy
-fly deploy
-```
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ORGO_API_KEY` | -- | API key (required for stdio transport) |
-| `ORGO_DEFAULT_COMPUTER_ID` | -- | Default computer ID (skip passing on every call) |
-| `MCP_TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
-| `MCP_HOST` | `0.0.0.0` | HTTP bind address |
-| `MCP_PORT` / `PORT` | `8000` | HTTP port |
-
----
+The hosted server does not store a shared Orgo key. Each request must include the user's Orgo API key header.
 
 ## Architecture
 
-```
+```text
 npx / stdio:
-  Claude  -->  stdio  -->  @orgo-ai/mcp  -->  Orgo API
+  MCP client -> stdio -> @orgo-ai/mcp -> Orgo API
                            ORGO_API_KEY env var
 
-Cloud / HTTP:
-  Claude  -->  HTTPS  -->  orgo-mcp server  -->  Orgo API
-                           X-Orgo-API-Key header
+Hosted HTTP:
+  MCP client -> HTTPS -> orgo-mcp server -> Orgo API
+                          X-Orgo-API-Key header
 
-Shell commands (enhanced):
-  orgo_bash  -->  Terminal WebSocket (preferred)  -->  VM
-             \->  REST /bash API (fallback)       -->  VM
+Shell commands:
+  orgo_bash -> Terminal WebSocket primary -> VM
+            -> REST /bash fallback        -> VM
 ```
-
-### Project Structure
-
-```
-orgo-mcp/
-├── src/
-│   ├── index.ts          # Entry point (stdio/http transport selection)
-│   ├── server.ts         # McpServer instantiation + tool registration
-│   ├── auth.ts           # API key resolution (AsyncLocalStorage + env)
-│   ├── client.ts         # HTTP client (proxy + direct VM fallback)
-│   ├── terminal.ts       # WebSocket terminal (connection pool, keep-alive)
-│   ├── errors.ts         # Unified error handling
-│   ├── types.ts          # TypeScript interfaces
-│   └── tools/            # Tool modules
-├── package.json
-├── tsconfig.json
-├── Dockerfile
-├── render.yaml
-├── fly.toml
-└── README.md
-```
-
----
 
 ## Development
 
 ```bash
 npm install
-npm run dev          # Watch mode (recompile on changes)
-npm run build        # One-time build
-npm start            # Run built server
-
-# Test HTTP transport
-MCP_TRANSPORT=http npm start
-curl http://localhost:8000/health
+npm run build
+npm test
+npm start
 ```
 
----
+CI runs:
+
+- TypeScript build from a clean `dist/`
+- MCP tool-list smoke tests for default, read-only, toolset, allowlist, and denylist policies
+- HTTP transport health and auth smoke tests
+- npm package content checks
+- Docker image build
+
+Before publishing:
+
+```bash
+npm test
+npm pack --dry-run
+```
 
 ## Troubleshooting
 
 | Error | Fix |
-|-------|-----|
-| `Invalid API key` | Ensure key starts with `sk_live_` |
-| `X-Orgo-API-Key header required` | Check header (no extra spaces) |
-| `computer_id required` | Pass `computer_id` or set `ORGO_DEFAULT_COMPUTER_ID` |
-| `Connection refused` | Check server is running; try `curl http://localhost:8000/health` |
-| Tools not appearing | Wait 10-30s after connection; check Claude MCP settings |
+| --- | --- |
+| `Invalid API key` | Check the Orgo API key and whether it is active. |
+| `X-Orgo-API-Key header required` | HTTP clients must send this header on `/mcp` requests. |
+| `computer_id required` | Pass `computer_id` or set `ORGO_DEFAULT_COMPUTER_ID`. |
+| `Connection refused` | Confirm the server is running and check `/health`. |
+| Tools not appearing | Check `ORGO_READ_ONLY`, `ORGO_TOOLSETS`, `ORGO_ENABLED_TOOLS`, and `ORGO_DISABLED_TOOLS`. |
 
----
+## Security
+
+- Do not commit `.env` files or API keys.
+- Prefer `ORGO_READ_ONLY=true` for observation-only clients.
+- Disable the `shell` toolset for clients that should not execute VM commands.
+- Treat `orgo_bash` and `orgo_exec` as high-power tools: they can modify anything reachable from the target VM.
+- HTTP deployments should pass the user's key per request via `X-Orgo-API-Key`; do not bake a production Orgo key into the server.
 
 ## License
 
-MIT -- see [LICENSE](LICENSE)
-
-## Credits
-
-- [Orgo](https://orgo.ai) -- Virtual computer infrastructure
-- [Anthropic](https://anthropic.com) -- MCP protocol
+MIT. See [LICENSE](LICENSE).

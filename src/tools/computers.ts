@@ -10,15 +10,24 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, resolveFlyInstanceId } from "../client.js";
 import { handleError } from "../errors.js";
+import { registerOrgoTool } from "./registry.js";
 
 export function registerComputerTools(server: McpServer): void {
-  server.tool(
-    "orgo_list_computers",
-    "List all computers in a workspace. Returns IDs, names, status, specs.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_list_computers",
+    title: "List Computers",
+    description: "List all computers in a workspace. Returns IDs, names, status, specs.",
+    inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID to list computers from"),
     },
-    async ({ workspace_id }) => {
+    toolsets: ["core"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    handler: async ({ workspace_id }) => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/${workspace_id}`, apiKey);
@@ -29,13 +38,14 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_create_computer",
-    "Create a virtual computer in a workspace. Boots in <500ms. Returns computer ID and details.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_create_computer",
+    title: "Create Computer",
+    description: "Create a virtual computer in a workspace. Boots in under 500ms. Returns computer ID and details.",
+    inputSchema: {
       workspace: z.string().min(1).describe("Workspace name (created automatically if doesn't exist)"),
       name: z.string().max(100).optional().describe("Computer name (auto-generated if omitted)"),
       os: z.enum(["linux"]).default("linux").describe("Operating system (only linux supported)"),
@@ -45,7 +55,14 @@ export function registerComputerTools(server: McpServer): void {
       resolution: z.string().default("1280x720x24").describe("Display resolution (WIDTHxHEIGHTxDEPTH)"),
       image: z.string().optional().describe("Custom template image reference (from orgo Forge/Templates)"),
     },
-    async ({ workspace, name, os, ram, cpu, gpu, resolution, image }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ workspace, name, os, ram, cpu, gpu, resolution, image }) => {
       try {
         const apiKey = getApiKey();
         const body: Record<string, unknown> = {
@@ -64,16 +81,24 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_get_computer",
-    "Get computer details including status, specs, and dashboard URL.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_get_computer",
+    title: "Get Computer",
+    description: "Get computer details including status, specs, and dashboard URL.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
-    async ({ computer_id }) => {
+    toolsets: ["core"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -82,16 +107,24 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_delete_computer",
-    "Permanently delete a computer and all its data. Cannot be undone.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_delete_computer",
+    title: "Delete Computer",
+    description: "Permanently delete a computer and all its data. Cannot be undone.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
-    async ({ computer_id }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -100,16 +133,24 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_restart_computer",
-    "Restart a computer. Useful for recovering from unresponsive states.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_restart_computer",
+    title: "Restart Computer",
+    description: "Restart a computer. Useful for recovering from unresponsive states.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
-    async ({ computer_id }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -119,18 +160,26 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_clone_computer",
-    "Clone/duplicate a computer including its full disk state. Creates an identical copy.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_clone_computer",
+    title: "Clone Computer",
+    description: "Clone/duplicate a computer including its full disk state. Creates an identical copy.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID to clone (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       name: z.string().optional().describe("Name for the cloned computer"),
       workspace_id: z.string().optional().describe("Target workspace ID (defaults to same workspace)"),
     },
-    async ({ computer_id, name, workspace_id }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, name, workspace_id }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -146,16 +195,24 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_ensure_running",
-    "Ensure a computer is running. Resumes suspended VMs automatically. Idempotent.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_ensure_running",
+    title: "Ensure Computer Running",
+    description: "Ensure a computer is running. Resumes suspended VMs automatically. Idempotent.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
-    async ({ computer_id }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -164,20 +221,28 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_resize_computer",
-    "Resize a computer's CPU, RAM, disk, or bandwidth. Some changes may require a restart.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_resize_computer",
+    title: "Resize Computer",
+    description: "Resize a computer's CPU, RAM, disk, or bandwidth. Some changes may require a restart.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       cpu: z.number().optional().describe("New CPU cores (1, 2, 4, 8, 16)"),
       ram: z.number().optional().describe("New RAM in GB (4, 8, 16, 32, 64)"),
       disk_size_gb: z.number().optional().describe("New disk size in GB"),
       bandwidth_limit_mbps: z.number().optional().describe("Bandwidth limit in Mbps"),
     },
-    async ({ computer_id, cpu, ram, disk_size_gb, bandwidth_limit_mbps }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, cpu, ram, disk_size_gb, bandwidth_limit_mbps }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -191,6 +256,6 @@ export function registerComputerTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 }

@@ -11,16 +11,25 @@ import { getApiKey, resolveComputerId } from "../auth.js";
 import { computerAction } from "../client.js";
 import { executeViaTerminal } from "../terminal.js";
 import { handleError } from "../errors.js";
+import { registerOrgoTool } from "./registry.js";
 
 export function registerShellTools(server: McpServer): void {
-  server.tool(
-    "orgo_bash",
-    "Execute a bash command on the VM. Uses WebSocket terminal (preferred) with REST API fallback.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_bash",
+    title: "Run Bash",
+    description: "Execute a bash command on the VM. Uses WebSocket terminal (preferred) with REST API fallback.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       command: z.string().min(1).describe("Bash command to execute"),
     },
-    async ({ computer_id, command }) => {
+    toolsets: ["shell"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, command }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -42,18 +51,26 @@ export function registerShellTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_exec",
-    "Execute Python code on the computer. Returns output or error details.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_exec",
+    title: "Run Python",
+    description: "Execute Python code on the computer. Returns output or error details.",
+    inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       code: z.string().min(1).describe("Python code to execute"),
       timeout: z.number().int().min(1).max(300).default(10).describe("Timeout in seconds"),
     },
-    async ({ computer_id, code, timeout }) => {
+    toolsets: ["shell"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, code, timeout }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
@@ -64,6 +81,6 @@ export function registerShellTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 }

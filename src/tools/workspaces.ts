@@ -10,13 +10,22 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey } from "../auth.js";
 import { apiRequest } from "../client.js";
 import { handleError } from "../errors.js";
+import { registerOrgoTool } from "./registry.js";
 
 export function registerWorkspaceTools(server: McpServer): void {
-  server.tool(
-    "orgo_list_workspaces",
-    "List all workspaces in your Orgo account. Returns workspace IDs, names, and computer counts.",
-    {},
-    async () => {
+  registerOrgoTool(server, {
+    name: "orgo_list_workspaces",
+    title: "List Workspaces",
+    description: "List all workspaces in your Orgo account. Returns workspace IDs, names, and computer counts.",
+    inputSchema: {},
+    toolsets: ["core"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    handler: async () => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", "projects", apiKey);
@@ -24,16 +33,24 @@ export function registerWorkspaceTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_create_workspace",
-    "Create a new workspace. Workspace names must be unique. Returns the workspace ID.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_create_workspace",
+    title: "Create Workspace",
+    description: "Create a new workspace. Workspace names must be unique. Returns the workspace ID.",
+    inputSchema: {
       name: z.string().min(1).max(64).describe("Unique workspace name (letters, numbers, hyphens, underscores)"),
     },
-    async ({ name }) => {
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ name }) => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("POST", "projects", apiKey, { json: { name } });
@@ -41,16 +58,24 @@ export function registerWorkspaceTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_get_workspace",
-    "Get workspace details including its computers. Returns workspace info and computer list.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_get_workspace",
+    title: "Get Workspace",
+    description: "Get workspace details including its computers. Returns workspace info and computer list.",
+    inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID (from orgo_list_workspaces)"),
     },
-    async ({ workspace_id }) => {
+    toolsets: ["core"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    handler: async ({ workspace_id }) => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/${workspace_id}`, apiKey);
@@ -58,16 +83,24 @@ export function registerWorkspaceTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 
-  server.tool(
-    "orgo_workspace_by_name",
-    "Look up a workspace by name instead of ID. Returns workspace details if found.",
-    {
+  registerOrgoTool(server, {
+    name: "orgo_workspace_by_name",
+    title: "Get Workspace By Name",
+    description: "Look up a workspace by name instead of ID. Returns workspace details if found.",
+    inputSchema: {
       name: z.string().min(1).describe("Workspace name to look up"),
     },
-    async ({ name }) => {
+    toolsets: ["core"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+    handler: async ({ name }) => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/by-name/${name}`, apiKey);
@@ -75,6 +108,6 @@ export function registerWorkspaceTools(server: McpServer): void {
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
-    }
-  );
+    },
+  });
 }

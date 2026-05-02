@@ -1,34 +1,11 @@
-# ==============================================================================
-# .dockerignore - Exclude files from Docker build context
-# ==============================================================================
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
+# Build output and package artifacts
 dist/
+build/
 downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+*.tgz
 
-# Virtual environments
-venv/
-ENV/
-env/
-.venv/
+# Dependencies
+node_modules/
 
 # IDE
 .idea/
@@ -41,14 +18,15 @@ env/
 .git/
 .gitignore
 
-# Environment files (secrets!)
+# Environment files
 .env
 .env.local
 .env.*
 !.env.example
 
-# Claude
+# Local MCP/client settings
 .claude/
+.mcp.json
 
 # OS
 .DS_Store
@@ -58,18 +36,15 @@ Thumbs.db
 *.log
 
 # Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
+coverage/
 
-# Documentation (not needed in container)
+# Documentation not needed in the runtime image
 docs/
 *.md
 !README.md
 
 # Development files
 tests/
+scripts/
 Makefile
 *.sh
