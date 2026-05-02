@@ -65,21 +65,16 @@ cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/
 
 ---
 
-## Tools (40 total)
+## Tools (25 total)
 
 | Category | Tools |
 |----------|-------|
 | **Workspaces** | `orgo_list_workspaces`, `orgo_create_workspace`, `orgo_get_workspace`, `orgo_workspace_by_name` |
-| **Computers** | `orgo_list_computers`, `orgo_create_computer`, `orgo_get_computer`, `orgo_delete_computer`, `orgo_start_computer`, `orgo_stop_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer` |
+| **Computers** | `orgo_list_computers`, `orgo_create_computer`, `orgo_get_computer`, `orgo_delete_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer` |
 | **Actions** | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag` |
 | **Shell** | `orgo_bash` (WebSocket terminal preferred, REST fallback), `orgo_exec` (Python) |
 | **Files** | `orgo_list_files`, `orgo_upload_file`, `orgo_export_file`, `orgo_download_file` |
-| **AI Agent** | `orgo_completions` (autonomous agent with screen vision) |
-| **Threads** | `orgo_list_threads`, `orgo_get_thread`, `orgo_delete_thread` |
-| **Streaming** | `orgo_start_stream`, `orgo_stream_status`, `orgo_stop_stream` |
-| **Templates** | `orgo_list_templates`, `orgo_starred_templates`, `orgo_star_template` |
 | **Access** | `orgo_vnc_password` |
-| **Account** | `orgo_get_profile`, `orgo_get_credits`, `orgo_get_transactions` |
 
 ---
 
@@ -166,7 +161,7 @@ orgo-mcp/
 │   ├── terminal.ts       # WebSocket terminal (connection pool, keep-alive)
 │   ├── errors.ts         # Unified error handling
 │   ├── types.ts          # TypeScript interfaces
-│   └── tools/            # 11 tool modules (38 tools total)
+│   └── tools/            # Tool modules
 ├── package.json
 ├── tsconfig.json
 ├── Dockerfile

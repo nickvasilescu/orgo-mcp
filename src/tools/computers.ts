@@ -104,44 +104,6 @@ export function registerComputerTools(server: McpServer): void {
   );
 
   server.tool(
-    "orgo_start_computer",
-    "Start a stopped computer. State is preserved from when it was stopped. Idempotent.",
-    {
-      computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
-    },
-    async ({ computer_id }) => {
-      try {
-        const apiKey = getApiKey();
-        const id = resolveComputerId(computer_id);
-        const flyId = await resolveFlyInstanceId(id, apiKey);
-        const data = await apiRequest("POST", `computers/${flyId}/start`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-      } catch (e) {
-        return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
-      }
-    }
-  );
-
-  server.tool(
-    "orgo_stop_computer",
-    "Stop a running computer. State is preserved. Stopped computers don't incur charges.",
-    {
-      computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
-    },
-    async ({ computer_id }) => {
-      try {
-        const apiKey = getApiKey();
-        const id = resolveComputerId(computer_id);
-        const flyId = await resolveFlyInstanceId(id, apiKey);
-        const data = await apiRequest("POST", `computers/${flyId}/stop`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-      } catch (e) {
-        return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
-      }
-    }
-  );
-
-  server.tool(
     "orgo_restart_computer",
     "Restart a computer. Useful for recovering from unresponsive states.",
     {

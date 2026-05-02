@@ -8,8 +8,8 @@ import { registerAllTools } from "./tools/index.js";
 const ORGO_MCP_INSTRUCTIONS = `
 # Orgo MCP -- Tool Selection Guide
 
-Orgo provides cloud virtual machines for AI agents. This MCP gives you full control:
-VM lifecycle, shell commands, screen interaction, file management, and AI agent orchestration.
+Orgo provides cloud virtual machines for AI agents. This MCP gives you focused control:
+workspace/computer management, shell commands, screen interaction, file management, and VNC access.
 
 ## Default Computer
 
@@ -40,14 +40,11 @@ Pixel-based tools (orgo_*) are the right choice for native apps, terminal window
 
 ## Tool Categories
 
-- **VM Lifecycle**: create, start, stop, restart, delete, clone, resize, ensure_running
+- **VM Management**: list, create, get, delete, restart, clone, resize, ensure_running
 - **Screen Actions**: screenshot, click, type, key, scroll, drag
 - **Shell**: bash (WebSocket terminal preferred), exec (Python)
 - **Files**: list, upload, export, download
-- **AI Agent**: completions (autonomous agent), threads (conversation history)
-- **Streaming**: start/stop RTMP streams
-- **Templates**: list, star/unstar VM templates
-- **Account**: profile, credits, transactions
+- **Access**: VNC password
 `.trim();
 
 /**
