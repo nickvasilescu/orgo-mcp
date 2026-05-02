@@ -10,6 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, resolveFlyInstanceId } from "../client.js";
 import { handleError } from "../errors.js";
+import { jsonText } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
 export function registerComputerTools(server: McpServer): void {
@@ -33,7 +34,7 @@ export function registerComputerTools(server: McpServer): void {
         const data = await apiRequest("GET", `projects/${workspace_id}`, apiKey);
         const computers = (data as Record<string, unknown>).desktops || [];
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ computers, count: (computers as unknown[]).length }, null, 2) }],
+          content: [{ type: "text" as const, text: jsonText({ computers, count: (computers as unknown[]).length }) }],
         };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
@@ -77,7 +78,7 @@ export function registerComputerTools(server: McpServer): void {
         if (image) body.image = image;
 
         const data = await apiRequest("POST", "computers", apiKey, { json: body, timeout: 60000 });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -103,7 +104,7 @@ export function registerComputerTools(server: McpServer): void {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
         const data = await apiRequest("GET", `computers/${id}`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -129,7 +130,7 @@ export function registerComputerTools(server: McpServer): void {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
         const data = await apiRequest("DELETE", `computers/${id}`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -156,7 +157,7 @@ export function registerComputerTools(server: McpServer): void {
         const id = resolveComputerId(computer_id);
         const flyId = await resolveFlyInstanceId(id, apiKey);
         const data = await apiRequest("POST", `computers/${flyId}/restart`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -191,7 +192,7 @@ export function registerComputerTools(server: McpServer): void {
           json: body,
           timeout: 120000,
         });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -217,7 +218,7 @@ export function registerComputerTools(server: McpServer): void {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
         const data = await apiRequest("POST", `computers/${id}/ensure-running`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -252,7 +253,7 @@ export function registerComputerTools(server: McpServer): void {
         if (disk_size_gb !== undefined) body.disk_size_gb = disk_size_gb;
         if (bandwidth_limit_mbps !== undefined) body.bandwidth_limit_mbps = bandwidth_limit_mbps;
         const data = await apiRequest("PATCH", `computers/${id}/resize`, apiKey, { json: body });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }

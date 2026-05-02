@@ -99,6 +99,20 @@ async function listToolNames(env = {}) {
 }
 
 async function run() {
+  const { jsonText } = await import("../dist/tools/format.js");
+  const sanitized = jsonText({
+    vncPassword: "plain-vnc-password",
+    vnc_password_encrypted: "encrypted-vnc-password",
+    nested: {
+      apiKey: "sk_live_TEST_SECRET",
+      safe: "visible",
+    },
+  });
+  assert(!sanitized.includes("plain-vnc-password"), "plain VNC password leaked through sanitizer");
+  assert(!sanitized.includes("encrypted-vnc-password"), "encrypted VNC password leaked through sanitizer");
+  assert(!sanitized.includes("sk_live_TEST_SECRET"), "API key value leaked through sanitizer");
+  assert(sanitized.includes("visible"), "sanitizer removed safe values");
+
   const defaultTools = await listToolNames();
   const defaultNames = defaultTools.map((tool) => tool.name);
   assertSameNames(defaultNames, EXPECTED_DEFAULT_TOOLS, "default tools");

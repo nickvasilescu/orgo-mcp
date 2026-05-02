@@ -11,6 +11,7 @@ import { getApiKey, resolveComputerId } from "../auth.js";
 import { computerAction } from "../client.js";
 import { executeViaTerminal } from "../terminal.js";
 import { handleError } from "../errors.js";
+import { jsonText } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
 export function registerShellTools(server: McpServer): void {
@@ -77,7 +78,7 @@ export function registerShellTools(server: McpServer): void {
         const data = await computerAction("POST", id, "exec", apiKey, {
           json: { code, timeout },
         });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }

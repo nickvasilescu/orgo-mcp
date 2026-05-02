@@ -10,6 +10,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey } from "../auth.js";
 import { apiRequest } from "../client.js";
 import { handleError } from "../errors.js";
+import { jsonText } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
 export function registerWorkspaceTools(server: McpServer): void {
@@ -29,7 +30,7 @@ export function registerWorkspaceTools(server: McpServer): void {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", "projects", apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -54,7 +55,7 @@ export function registerWorkspaceTools(server: McpServer): void {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("POST", "projects", apiKey, { json: { name } });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -79,7 +80,7 @@ export function registerWorkspaceTools(server: McpServer): void {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/${workspace_id}`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -104,7 +105,7 @@ export function registerWorkspaceTools(server: McpServer): void {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/by-name/${name}`, apiKey);
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }

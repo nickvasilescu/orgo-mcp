@@ -11,3 +11,4 @@
 - Add MCP tool-list smoke tests and GitHub Actions CI.
 - Clean `dist/` before every build so removed tools cannot remain in the npm package.
 - Mark `orgo_restart_computer` as destructive so clients can treat restart as an interrupting operation.
+- Redact sensitive fields from text responses before returning Orgo API payloads to MCP clients.

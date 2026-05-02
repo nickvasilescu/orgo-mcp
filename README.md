@@ -70,6 +70,7 @@ The server exposes 24 focused tools.
 
 Each tool is registered with MCP annotations for `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
 `orgo_restart_computer` is marked destructive because it can interrupt running processes and unsaved VM state.
+Text responses are sanitized before they are returned to the MCP client, so password, token, secret, credential, and API-key fields are redacted even when Orgo API responses include them.
 
 Deliberately not exposed:
 

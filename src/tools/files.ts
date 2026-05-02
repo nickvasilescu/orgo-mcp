@@ -7,6 +7,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, uploadFile } from "../client.js";
 import { handleError } from "../errors.js";
+import { jsonText } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
 export function registerFileTools(server: McpServer): void {
@@ -31,7 +32,7 @@ export function registerFileTools(server: McpServer): void {
         const params: Record<string, string> = { projectId: workspace_id };
         if (computer_id) params.desktopId = computer_id;
         const data = await apiRequest("GET", "files", apiKey, { params });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -60,7 +61,7 @@ export function registerFileTools(server: McpServer): void {
         const data = await apiRequest("POST", "files/export", apiKey, {
           json: { desktopId: id, path },
         });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -93,7 +94,7 @@ export function registerFileTools(server: McpServer): void {
           computerId: computer_id,
           contentType: content_type,
         });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
@@ -120,7 +121,7 @@ export function registerFileTools(server: McpServer): void {
         const data = await apiRequest("GET", "files/download", apiKey, {
           params: { id: file_id },
         });
-        return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
