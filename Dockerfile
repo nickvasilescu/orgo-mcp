@@ -13,8 +13,9 @@ WORKDIR /build
 # Copy dependency files first (better layer caching)
 COPY package.json package-lock.json* tsconfig.json ./
 
-# Install all dependencies (including dev for build)
-RUN npm ci
+# Install all dependencies (including dev for build). Disable lifecycle scripts
+# here because the package prepare script builds from src/, copied below.
+RUN npm ci --ignore-scripts
 
 # Copy source and build
 COPY src/ ./src/
@@ -33,10 +34,6 @@ LABEL org.opencontainers.image.title="Orgo MCP Server" \
       org.opencontainers.image.source="https://github.com/nickvasilescu/orgo-mcp" \
       org.opencontainers.image.licenses="MIT"
 
-# Security: Run as non-root user
-RUN groupadd --gid 1000 mcp && \
-    useradd --uid 1000 --gid mcp --shell /bin/false --create-home mcp
-
 WORKDIR /app
 
 # Copy package files and install production deps only
@@ -51,8 +48,8 @@ ENV MCP_TRANSPORT=http \
     PORT=8000 \
     NODE_ENV=production
 
-# Switch to non-root user
-USER mcp
+# Switch to the non-root user included in the official Node image.
+USER node
 
 # Expose the default port
 EXPOSE 8000
