@@ -65,7 +65,7 @@ cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/
 
 ---
 
-## Tools (25 total)
+## Tools (24 total)
 
 | Category | Tools |
 |----------|-------|
@@ -74,7 +74,6 @@ cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/
 | **Actions** | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag` |
 | **Shell** | `orgo_bash` (WebSocket terminal preferred, REST fallback), `orgo_exec` (Python) |
 | **Files** | `orgo_list_files`, `orgo_upload_file`, `orgo_export_file`, `orgo_download_file` |
-| **Access** | `orgo_vnc_password` |
 
 ---
 

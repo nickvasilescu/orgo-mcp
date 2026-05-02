@@ -9,7 +9,7 @@ const ORGO_MCP_INSTRUCTIONS = `
 # Orgo MCP -- Tool Selection Guide
 
 Orgo provides cloud virtual machines for AI agents. This MCP gives you focused control:
-workspace/computer management, shell commands, screen interaction, file management, and VNC access.
+workspace/computer management, shell commands, screen interaction, and file management.
 
 ## Default Computer
 
@@ -44,7 +44,6 @@ Pixel-based tools (orgo_*) are the right choice for native apps, terminal window
 - **Screen Actions**: screenshot, click, type, key, scroll, drag
 - **Shell**: bash (WebSocket terminal preferred), exec (Python)
 - **Files**: list, upload, export, download
-- **Access**: VNC password
 `.trim();
 
 /**
