@@ -146,7 +146,7 @@ export function registerComputerTools(server: McpServer): void {
     toolsets: ["admin"],
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: false,
       openWorldHint: true,
     },

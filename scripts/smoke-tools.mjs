@@ -113,6 +113,8 @@ async function run() {
     assert(typeof tool.annotations.readOnlyHint === "boolean", `${tool.name} missing readOnlyHint`);
     assert(typeof tool.annotations.destructiveHint === "boolean", `${tool.name} missing destructiveHint`);
   }
+  const restartTool = defaultTools.find((tool) => tool.name === "orgo_restart_computer");
+  assert(restartTool?.annotations?.destructiveHint === true, "orgo_restart_computer must be marked destructive");
 
   const readOnlyTools = await listToolNames({ ORGO_READ_ONLY: "true" });
   assertSameNames(

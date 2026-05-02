@@ -69,6 +69,7 @@ The server exposes 24 focused tools.
 | `files` | `orgo_list_files`, `orgo_export_file`, `orgo_upload_file`, `orgo_download_file` |
 
 Each tool is registered with MCP annotations for `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`.
+`orgo_restart_computer` is marked destructive because it can interrupt running processes and unsaved VM state.
 
 Deliberately not exposed:
 

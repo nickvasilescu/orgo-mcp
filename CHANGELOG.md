@@ -10,3 +10,4 @@
 - Add production tool controls with `ORGO_READ_ONLY`, `ORGO_TOOLSETS`, `ORGO_ENABLED_TOOLS`, and `ORGO_DISABLED_TOOLS`.
 - Add MCP tool-list smoke tests and GitHub Actions CI.
 - Clean `dist/` before every build so removed tools cannot remain in the npm package.
+- Mark `orgo_restart_computer` as destructive so clients can treat restart as an interrupting operation.
