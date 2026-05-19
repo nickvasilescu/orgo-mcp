@@ -242,4 +242,31 @@ export function registerActionTools(server: McpServer): void {
       }
     },
   });
+
+  registerOrgoTool(server, {
+    name: "orgo_wait",
+    title: "Wait",
+    description: "Pause execution on the VM for a fixed duration. Useful for sequencing actions between screen updates.",
+    inputSchema: {
+      computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
+      duration: z.number().min(0.1).max(60).describe("Duration to wait in seconds (0.1 to 60)"),
+    },
+    toolsets: ["screen"],
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, duration }) => {
+      try {
+        const apiKey = getApiKey();
+        const id = resolveComputerId(computer_id);
+        await computerAction("POST", id, "wait", apiKey, { json: { duration } });
+        return { content: [{ type: "text" as const, text: `Waited ${duration}s` }] };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
+      }
+    },
+  });
 }
