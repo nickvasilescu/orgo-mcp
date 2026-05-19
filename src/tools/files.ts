@@ -7,8 +7,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, uploadFile } from "../client.js";
 import { handleError } from "../errors.js";
-import { jsonText } from "./format.js";
+import { jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
+
+const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Recommended for agent contexts to minimize token usage.";
 
 export function registerFileTools(server: McpServer): void {
   registerOrgoTool(server, {
@@ -18,6 +20,7 @@ export function registerFileTools(server: McpServer): void {
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID"),
       computer_id: z.string().optional().describe("Optional computer ID to filter by"),
+      compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
     },
     toolsets: ["files"],
     annotations: {
@@ -26,13 +29,13 @@ export function registerFileTools(server: McpServer): void {
       idempotentHint: true,
       openWorldHint: true,
     },
-    handler: async ({ workspace_id, computer_id }) => {
+    handler: async ({ workspace_id, computer_id, compact }) => {
       try {
         const apiKey = getApiKey();
         const params: Record<string, string> = { projectId: workspace_id };
         if (computer_id) params.desktopId = computer_id;
         const data = await apiRequest("GET", "files", apiKey, { params });
-        return { content: [{ type: "text" as const, text: jsonText(data) }] };
+        return { content: [{ type: "text" as const, text: compact ? jsonTextCompact(data) : jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }

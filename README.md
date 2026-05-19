@@ -72,6 +72,10 @@ Each tool is registered with MCP annotations for `readOnlyHint`, `destructiveHin
 `orgo_restart_computer` is marked destructive because it can interrupt running processes and unsaved VM state.
 Text responses are sanitized before they are returned to the MCP client, so password, token, secret, credential, and API-key fields are redacted even when Orgo API responses include them.
 
+### Compact mode for read tools
+
+Pass `compact: true` to any read tool (`orgo_list_workspaces`, `orgo_get_workspace`, `orgo_workspace_by_name`, `orgo_list_computers`, `orgo_get_computer`, `orgo_list_files`) to drop noisy fields like `instance_details`, `template_build_id`, and `user_id` from the response. Keeps `id`, `name`, `status`, timestamps, and key resource fields (`cpu`, `ram`, `os`, `disk_size_gb`, `fly_instance_id`, file `size`/`path`). Typical savings: 50%+ on list endpoints. Recommended for agent contexts where response size affects available tokens.
+
 Deliberately not exposed:
 
 - computer start/stop tools

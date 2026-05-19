@@ -10,8 +10,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, resolveFlyInstanceId } from "../client.js";
 import { handleError } from "../errors.js";
-import { jsonText } from "./format.js";
+import { jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
+
+const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Recommended for agent contexts to minimize token usage.";
 
 export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
@@ -20,6 +22,7 @@ export function registerComputerTools(server: McpServer): void {
     description: "List all computers in a workspace. Returns IDs, names, status, specs.",
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID to list computers from"),
+      compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
     },
     toolsets: ["core"],
     annotations: {
@@ -28,13 +31,14 @@ export function registerComputerTools(server: McpServer): void {
       idempotentHint: true,
       openWorldHint: true,
     },
-    handler: async ({ workspace_id }) => {
+    handler: async ({ workspace_id, compact }) => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/${workspace_id}`, apiKey);
         const computers = (data as Record<string, unknown>).desktops || [];
+        const payload = { computers, count: (computers as unknown[]).length };
         return {
-          content: [{ type: "text" as const, text: jsonText({ computers, count: (computers as unknown[]).length }) }],
+          content: [{ type: "text" as const, text: compact ? jsonTextCompact(payload) : jsonText(payload) }],
         };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
@@ -91,6 +95,7 @@ export function registerComputerTools(server: McpServer): void {
     description: "Get computer details including status, specs, and dashboard URL.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
+      compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
     },
     toolsets: ["core"],
     annotations: {
@@ -99,12 +104,12 @@ export function registerComputerTools(server: McpServer): void {
       idempotentHint: true,
       openWorldHint: true,
     },
-    handler: async ({ computer_id }) => {
+    handler: async ({ computer_id, compact }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
         const data = await apiRequest("GET", `computers/${id}`, apiKey);
-        return { content: [{ type: "text" as const, text: jsonText(data) }] };
+        return { content: [{ type: "text" as const, text: compact ? jsonTextCompact(data) : jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }
