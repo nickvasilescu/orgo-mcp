@@ -58,13 +58,13 @@ cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/
 
 ## Tools
 
-The server exposes 24 focused tools.
+The server exposes 27 focused tools.
 
 | Toolset | Tools |
 | --- | --- |
 | `core` | `orgo_list_workspaces`, `orgo_get_workspace`, `orgo_workspace_by_name`, `orgo_list_computers`, `orgo_get_computer` |
-| `admin` | `orgo_create_workspace`, `orgo_create_computer`, `orgo_delete_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer` |
-| `screen` | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag` |
+| `admin` | `orgo_create_workspace`, `orgo_delete_workspace`, `orgo_create_computer`, `orgo_delete_computer`, `orgo_restart_computer`, `orgo_clone_computer`, `orgo_ensure_running`, `orgo_resize_computer`, `orgo_move_computer` |
+| `screen` | `orgo_screenshot`, `orgo_click`, `orgo_type`, `orgo_key`, `orgo_scroll`, `orgo_drag`, `orgo_wait` |
 | `shell` | `orgo_bash`, `orgo_exec` |
 | `files` | `orgo_list_files`, `orgo_export_file`, `orgo_upload_file`, `orgo_download_file` |
 

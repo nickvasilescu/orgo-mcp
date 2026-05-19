@@ -111,4 +111,29 @@ export function registerWorkspaceTools(server: McpServer): void {
       }
     },
   });
+
+  registerOrgoTool(server, {
+    name: "orgo_delete_workspace",
+    title: "Delete Workspace",
+    description: "Permanently delete a workspace and all of its computers. Cannot be undone.",
+    inputSchema: {
+      workspace_id: z.string().min(1).describe("Workspace ID to delete"),
+    },
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ workspace_id }) => {
+      try {
+        const apiKey = getApiKey();
+        const data = await apiRequest("DELETE", `projects/${workspace_id}`, apiKey);
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
+      }
+    },
+  });
 }

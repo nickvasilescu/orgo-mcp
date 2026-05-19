@@ -259,4 +259,33 @@ export function registerComputerTools(server: McpServer): void {
       }
     },
   });
+
+  registerOrgoTool(server, {
+    name: "orgo_move_computer",
+    title: "Move Computer",
+    description: "Move a computer to a different workspace. The computer keeps its ID and disk state.",
+    inputSchema: {
+      computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
+      workspace_id: z.string().min(1).describe("Target workspace ID to move the computer to"),
+    },
+    toolsets: ["admin"],
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    handler: async ({ computer_id, workspace_id }) => {
+      try {
+        const apiKey = getApiKey();
+        const id = resolveComputerId(computer_id);
+        const data = await apiRequest("PATCH", `computers/${id}/move`, apiKey, {
+          json: { project_id: workspace_id },
+        });
+        return { content: [{ type: "text" as const, text: jsonText(data) }] };
+      } catch (e) {
+        return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
+      }
+    },
+  });
 }
