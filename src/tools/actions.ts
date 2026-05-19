@@ -262,7 +262,7 @@ export function registerActionTools(server: McpServer): void {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
-        await computerAction("POST", id, "wait", apiKey, { json: { duration } });
+        await computerAction("POST", id, "wait", apiKey, { json: { seconds: duration } });
         return { content: [{ type: "text" as const, text: `Waited ${duration}s` }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
