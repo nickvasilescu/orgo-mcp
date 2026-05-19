@@ -22,6 +22,7 @@
     "test": "npm run build && node scripts/smoke-tools.mjs",
     "test:http": "npm run build && node scripts/smoke-http.mjs",
     "test:tools": "node scripts/smoke-tools.mjs",
+    "test:live": "npm run build && node scripts/e2e-live.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },

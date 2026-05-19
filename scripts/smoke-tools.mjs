@@ -30,6 +30,7 @@ const EXPECTED_DEFAULT_TOOLS = [
   "orgo_export_file",
   "orgo_upload_file",
   "orgo_download_file",
+  "orgo_doctor",
 ];
 
 const EXPECTED_READ_ONLY_TOOLS = [
@@ -42,6 +43,7 @@ const EXPECTED_READ_ONLY_TOOLS = [
   "orgo_wait",
   "orgo_list_files",
   "orgo_download_file",
+  "orgo_doctor",
 ];
 
 const BANNED_TOOLS = [
