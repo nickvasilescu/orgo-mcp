@@ -32,7 +32,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_screenshot",
     title: "Take Screenshot",
-    description: "Take a screenshot of the full VM display (all windows, desktop). Returns an image.",
+    description: "Take a screenshot of the full VM display (all windows, desktop). Returns an image. Use to verify visual state before deciding the next action, and after click/type/drag where the response payload doesn't reflect what changed on screen.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
@@ -85,7 +85,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_click",
     title: "Click",
-    description: "Click at pixel (x, y) coordinates on the VM display. Coordinates are in 1280x720 model space.",
+    description: "Click at pixel (x, y) coordinates on the VM display. Coordinates are in 1280x720 model space. Use only when GUI interaction is genuinely required — for anything scriptable, prefer `orgo_bash` (faster, no coordinate brittleness).",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       x: z.number().int().min(0).describe("X coordinate (pixels from left)"),
@@ -119,7 +119,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_type",
     title: "Type Text",
-    description: "Type text at the current cursor position on the VM.",
+    description: "Type text at the current cursor position on the VM. Use to enter text in a focused GUI field; for terminal/shell input prefer `orgo_bash` directly (no need to drive a keyboard).",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       text: z.string().min(1).describe("Text to type at cursor position"),
@@ -147,7 +147,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_key",
     title: "Press Key",
-    description: "Press a key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab, ctrl+shift+s, F1-F12.",
+    description: "Press a key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab, ctrl+shift+s, F1-F12. Use for control keys, shortcuts, or modal dismissal — `orgo_type` only sends literal text.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       key: z.string().min(1).describe("Key or combo: Enter, Tab, Escape, ctrl+c, alt+Tab"),
@@ -174,7 +174,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_scroll",
     title: "Scroll",
-    description: "Scroll the VM display up or down.",
+    description: "Scroll the VM display up or down. Use to navigate long pages, lists, or chat threads in the GUI.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       direction: z.enum(["up", "down"]).describe("Scroll direction"),
@@ -202,7 +202,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_drag",
     title: "Drag",
-    description: "Drag from (start_x, start_y) to (end_x, end_y). Coordinates in 1280x720 model space.",
+    description: "Drag from (start_x, start_y) to (end_x, end_y). Coordinates in 1280x720 model space. Use for text selection, drag-and-drop, slider manipulation — actions a click+release pair can't express.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       start_x: z.number().int().min(0).describe("Start X coordinate"),
@@ -246,7 +246,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_wait",
     title: "Wait",
-    description: "Pause execution on the VM for a fixed duration. Useful for sequencing actions between screen updates.",
+    description: "Pause execution on the VM for a fixed duration. Useful for sequencing actions between screen updates. Use after a click/type that triggers animation or async loading, before `orgo_screenshot` would otherwise capture an intermediate state.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       duration: z.number().min(0.1).max(60).describe("Duration to wait in seconds (0.1 to 60)"),

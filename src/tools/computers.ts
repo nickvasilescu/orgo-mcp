@@ -20,7 +20,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_list_computers",
     title: "List Computers",
-    description: "List all computers in a workspace. Returns IDs, names, status, specs.",
+    description: "List all computers in a workspace. Returns IDs, names, status, specs. Use to pick a target computer when you have a workspace ID — combine with `compact: true` to keep the payload lean.",
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID to list computers from"),
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
@@ -56,7 +56,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_create_computer",
     title: "Create Computer",
-    description: "Create a virtual computer in a workspace. Boots in under 500ms. Returns computer ID and details.",
+    description: "Create a virtual computer in a workspace. Boots in under 500ms. Returns computer ID and details. Use when a new VM is needed for a task; prefer `orgo_clone_computer` when an identical starting state is already configured elsewhere.",
     inputSchema: {
       workspace: z.string().min(1).describe("Workspace name (created automatically if doesn't exist)"),
       name: z.string().max(100).optional().describe("Computer name (auto-generated if omitted)"),
@@ -99,7 +99,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_get_computer",
     title: "Get Computer",
-    description: "Get computer details including status, specs, and dashboard URL.",
+    description: "Get computer details including status, specs, and dashboard URL. Use to check VM status before sending actions, or to retrieve the dashboard URL for human handoff.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
@@ -126,7 +126,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_delete_computer",
     title: "Delete Computer",
-    description: "Permanently delete a computer and all its data. Cannot be undone.",
+    description: "Permanently delete a computer and all its data. Cannot be undone. Use only when explicitly instructed to remove a VM; for transient bad states, prefer `orgo_restart_computer` first.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
@@ -152,7 +152,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_restart_computer",
     title: "Restart Computer",
-    description: "Restart a computer. Useful for recovering from unresponsive states.",
+    description: "Restart a computer. Useful for recovering from unresponsive states. Use when commands hang, the VM is in a bad state, or after kernel/system config changes that need a boot. Destructive: interrupts running processes and unsaved state.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
@@ -179,7 +179,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_clone_computer",
     title: "Clone Computer",
-    description: "Clone/duplicate a computer including its full disk state. Creates an identical copy.",
+    description: "Clone/duplicate a computer including its full disk state. Creates an identical copy. Use when spinning up parallel agents on the same starting environment, or snapshotting a known-good state before risky changes.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID to clone (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       name: z.string().optional().describe("Name for the cloned computer"),
@@ -214,7 +214,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_ensure_running",
     title: "Ensure Computer Running",
-    description: "Ensure a computer is running. Resumes suspended VMs automatically. Idempotent.",
+    description: "Ensure a computer is running. Resumes suspended VMs automatically. Idempotent. Use before sending screen/shell actions when the VM may be suspended (cheaper than orgo_get_computer + conditional restart).",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },
@@ -240,7 +240,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_resize_computer",
     title: "Resize Computer",
-    description: "Resize a computer's CPU, RAM, disk, or bandwidth. Some changes may require a restart.",
+    description: "Resize a computer's CPU, RAM, disk, or bandwidth. Some changes may require a restart. Use when workload exceeds current specs, or to scale down for cost when a task is complete.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       cpu: z.number().optional().describe("New CPU cores (1, 2, 4, 8, 16)"),
@@ -275,7 +275,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_move_computer",
     title: "Move Computer",
-    description: "Move a computer to a different workspace. The computer keeps its ID and disk state.",
+    description: "Move a computer to a different workspace. The computer keeps its ID and disk state. Use to reorganize fleets without recreating VMs; faster than clone + delete for live machines.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       workspace_id: z.string().min(1).describe("Target workspace ID to move the computer to"),

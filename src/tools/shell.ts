@@ -18,7 +18,7 @@ export function registerShellTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_bash",
     title: "Run Bash",
-    description: "Execute a bash command on the VM. Uses WebSocket terminal (preferred) with REST API fallback.",
+    description: "Execute a bash command on the VM. Uses WebSocket terminal (preferred) with REST API fallback. Prefer this over GUI clicks for anything scriptable — file ops, installs, git, curl, process management — and over `orgo_exec` when the task is a shell pipeline.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       command: z.string().min(1).describe("Bash command to execute"),
@@ -58,7 +58,7 @@ export function registerShellTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_exec",
     title: "Run Python",
-    description: "Execute Python code on the computer. Returns output or error details.",
+    description: "Execute Python code on the computer. Returns output or error details. Use for computation, JSON manipulation, HTTP calls, or any task naturally expressed in Python — `orgo_bash` is the right pick for shell-native operations.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       code: z.string().min(1).describe("Python code to execute"),

@@ -20,7 +20,7 @@ export function registerWorkspaceTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_list_workspaces",
     title: "List Workspaces",
-    description: "List all workspaces in your Orgo account. Returns workspace IDs, names, and computer counts.",
+    description: "List all workspaces in your Orgo account. Returns workspace IDs, names, and computer counts. Use as a session-start discovery call, or when an agent needs to pick a workspace by name/status.",
     inputSchema: {
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
       limit: z.number().int().min(1).max(500).optional().describe(LIMIT_DESC),
@@ -47,7 +47,7 @@ export function registerWorkspaceTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_create_workspace",
     title: "Create Workspace",
-    description: "Create a new workspace. Workspace names must be unique. Returns the workspace ID.",
+    description: "Create a new workspace. Workspace names must be unique. Returns the workspace ID. Use when organizing a new project, environment, or agent fleet — workspaces are the container for computers.",
     inputSchema: {
       name: z.string().min(1).max(64).describe("Unique workspace name (letters, numbers, hyphens, underscores)"),
     },
@@ -72,7 +72,7 @@ export function registerWorkspaceTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_get_workspace",
     title: "Get Workspace",
-    description: "Get workspace details including its computers. Returns workspace info and computer list.",
+    description: "Get workspace details including its computers. Returns workspace info and computer list. Use when you already have a workspace ID and want to enumerate its computers in one call (cheaper than list_workspaces + filter).",
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID (from orgo_list_workspaces)"),
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
@@ -98,7 +98,7 @@ export function registerWorkspaceTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_workspace_by_name",
     title: "Get Workspace By Name",
-    description: "Look up a workspace by name instead of ID. Returns workspace details if found.",
+    description: "Look up a workspace by name instead of ID. Returns workspace details if found. Use when the workspace name comes from configuration (env var, user input) but no ID is on hand — saves a list_workspaces + filter step.",
     inputSchema: {
       name: z.string().min(1).describe("Workspace name to look up"),
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
@@ -124,7 +124,7 @@ export function registerWorkspaceTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_delete_workspace",
     title: "Delete Workspace",
-    description: "Permanently delete a workspace and all of its computers. Cannot be undone.",
+    description: "Permanently delete a workspace and all of its computers. Cannot be undone. Use only when explicitly instructed to clean up — this removes every computer inside; prefer deleting individual computers if scope is narrower.",
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID to delete"),
     },
