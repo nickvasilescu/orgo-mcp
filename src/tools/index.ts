@@ -8,6 +8,7 @@ import { registerComputerTools } from "./computers.js";
 import { registerActionTools } from "./actions.js";
 import { registerShellTools } from "./shell.js";
 import { registerFileTools } from "./files.js";
+import { registerSystemTools } from "./system.js";
 
 export function registerAllTools(server: McpServer): void {
   registerWorkspaceTools(server);
@@ -15,4 +16,5 @@ export function registerAllTools(server: McpServer): void {
   registerActionTools(server);
   registerShellTools(server);
   registerFileTools(server);
+  registerSystemTools(server);
 }

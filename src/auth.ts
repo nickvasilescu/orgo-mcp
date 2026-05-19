@@ -50,3 +50,14 @@ export function resolveComputerId(computerId?: string): string {
 export function runWithApiKey<T>(key: string, fn: () => T): T {
   return apiKeyStore.run(key, fn);
 }
+
+/**
+ * Describe where the API key came from without leaking the value.
+ * Returns "http_header" (HTTP transport middleware), "env:ORGO_API_KEY"
+ * (stdio transport), or null when no key is configured.
+ */
+export function getApiKeySource(): "http_header" | "env:ORGO_API_KEY" | null {
+  if (apiKeyStore.getStore()) return "http_header";
+  if (process.env.ORGO_API_KEY) return "env:ORGO_API_KEY";
+  return null;
+}
