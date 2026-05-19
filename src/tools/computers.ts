@@ -10,10 +10,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, resolveFlyInstanceId } from "../client.js";
 import { handleError } from "../errors.js";
-import { jsonText, jsonTextCompact } from "./format.js";
+import { applyLimit, jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
 const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Recommended for agent contexts to minimize token usage.";
+const LIMIT_DESC = "Optional cap on the number of items returned. The Orgo API doesn't paginate server-side, so this trims client-side. When set and truncation occurs, the response includes `total` and `truncated: true`. Omit to return everything (current default).";
 
 export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
@@ -23,6 +24,7 @@ export function registerComputerTools(server: McpServer): void {
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID to list computers from"),
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
+      limit: z.number().int().min(1).max(500).optional().describe(LIMIT_DESC),
     },
     toolsets: ["core"],
     annotations: {
@@ -31,12 +33,17 @@ export function registerComputerTools(server: McpServer): void {
       idempotentHint: true,
       openWorldHint: true,
     },
-    handler: async ({ workspace_id, compact }) => {
+    handler: async ({ workspace_id, compact, limit }) => {
       try {
         const apiKey = getApiKey();
         const data = await apiRequest("GET", `projects/${workspace_id}`, apiKey);
         const computers = (data as Record<string, unknown>).desktops || [];
-        const payload = { computers, count: (computers as unknown[]).length };
+        const payload = applyLimit({ computers }, "computers", limit);
+        // applyLimit only adds count/total/truncated when limit is set;
+        // preserve the existing always-on count for backward compat.
+        if (limit === undefined) {
+          (payload as Record<string, unknown>).count = (computers as unknown[]).length;
+        }
         return {
           content: [{ type: "text" as const, text: compact ? jsonTextCompact(payload) : jsonText(payload) }],
         };

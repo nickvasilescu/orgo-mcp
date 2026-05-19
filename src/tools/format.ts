@@ -65,6 +65,7 @@ const COMPACT_KEEP_KEYS = new Set([
   // meta / aggregates
   "count",
   "total",
+  "truncated",
   "meta",
   // standard response envelopes
   "success",
@@ -99,4 +100,25 @@ export function compactProjection(value: unknown, seen = new WeakSet<object>()):
 
 export function jsonTextCompact(value: unknown): string {
   return jsonText(compactProjection(value));
+}
+
+// Client-side limit for list endpoints. Orgo's API doesn't paginate server-side,
+// so callers that pass `limit` get a slice plus `total` and `truncated` metadata.
+// When `limit` is undefined, the data is returned unchanged (backward compatible).
+export function applyLimit(
+  data: Record<string, unknown>,
+  arrayKey: string,
+  limit: number | undefined
+): Record<string, unknown> {
+  if (limit === undefined) return data;
+  const arr = data[arrayKey];
+  if (!Array.isArray(arr)) return data;
+  if (arr.length <= limit) return { ...data, count: arr.length, total: arr.length, truncated: false };
+  return {
+    ...data,
+    [arrayKey]: arr.slice(0, limit),
+    count: limit,
+    total: arr.length,
+    truncated: true,
+  };
 }

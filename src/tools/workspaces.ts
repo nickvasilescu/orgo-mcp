@@ -10,10 +10,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey } from "../auth.js";
 import { apiRequest } from "../client.js";
 import { handleError } from "../errors.js";
-import { jsonText, jsonTextCompact } from "./format.js";
+import { applyLimit, jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
 const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Recommended for agent contexts to minimize token usage.";
+const LIMIT_DESC = "Optional cap on the number of items returned. The Orgo API doesn't paginate server-side, so this trims client-side. When set and truncation occurs, the response includes `total` and `truncated: true`. Omit to return everything (current default).";
 
 export function registerWorkspaceTools(server: McpServer): void {
   registerOrgoTool(server, {
@@ -22,6 +23,7 @@ export function registerWorkspaceTools(server: McpServer): void {
     description: "List all workspaces in your Orgo account. Returns workspace IDs, names, and computer counts.",
     inputSchema: {
       compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
+      limit: z.number().int().min(1).max(500).optional().describe(LIMIT_DESC),
     },
     toolsets: ["core"],
     annotations: {
@@ -30,11 +32,12 @@ export function registerWorkspaceTools(server: McpServer): void {
       idempotentHint: true,
       openWorldHint: true,
     },
-    handler: async ({ compact }) => {
+    handler: async ({ compact, limit }) => {
       try {
         const apiKey = getApiKey();
-        const data = await apiRequest("GET", "projects", apiKey);
-        return { content: [{ type: "text" as const, text: compact ? jsonTextCompact(data) : jsonText(data) }] };
+        const data = (await apiRequest("GET", "projects", apiKey)) as Record<string, unknown>;
+        const payload = applyLimit(data, "projects", limit);
+        return { content: [{ type: "text" as const, text: compact ? jsonTextCompact(payload) : jsonText(payload) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
       }

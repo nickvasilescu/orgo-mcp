@@ -76,6 +76,10 @@ Text responses are sanitized before they are returned to the MCP client, so pass
 
 Pass `compact: true` to any read tool (`orgo_list_workspaces`, `orgo_get_workspace`, `orgo_workspace_by_name`, `orgo_list_computers`, `orgo_get_computer`, `orgo_list_files`) to drop noisy fields like `instance_details`, `template_build_id`, and `user_id` from the response. Keeps `id`, `name`, `status`, timestamps, and key resource fields (`cpu`, `ram`, `os`, `disk_size_gb`, `fly_instance_id`, file `size`/`path`). Typical savings: 50%+ on list endpoints. Recommended for agent contexts where response size affects available tokens.
 
+### Client-side limit for list tools
+
+Pass `limit: N` (1–500) to `orgo_list_workspaces`, `orgo_list_computers`, or `orgo_list_files` to cap the number of items returned. The Orgo API does not paginate server-side, so the MCP fetches everything and trims client-side. When truncation occurs, the response gains `total` (the real count) and `truncated: true`. Omit `limit` to return everything (current default — backward compatible). Combine with `compact: true` for the smallest payload: `{ limit: 5, compact: true }` typically returns under 3KB even on accounts with hundreds of computers.
+
 Deliberately not exposed:
 
 - computer start/stop tools
