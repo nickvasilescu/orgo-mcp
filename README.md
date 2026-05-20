@@ -2,7 +2,7 @@
 
 Official MCP server for controlling [Orgo](https://orgo.ai) cloud computers from Claude Code, Claude Desktop, and other Model Context Protocol clients.
 
-This package is TypeScript-first and ships as `@orgo-ai/mcp`.
+This package is TypeScript-first. The current 4.x line is installable directly from GitHub today; the npm publish to `@orgo-ai/mcp` is pending — only 3.0.0 is on npm right now, so `npx @orgo-ai/mcp` will fetch the older release until 4.0.0 ships there.
 
 ## Quick Start
 
@@ -12,10 +12,16 @@ Sign up or log in at [orgo.ai](https://orgo.ai), then copy an API key from **Set
 
 ### 2. Add the MCP server
 
+The recommended install path right now uses the GitHub URL so you get the current 4.x build (compact mode, limit, `orgo_doctor`, etc.). Pin to a commit SHA for production stability; omit the `#sha` to track the `main` branch.
+
 Claude Code:
 
 ```bash
-claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp
+# Latest from main (auto-builds on install)
+claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp
+
+# Or pin to a specific commit
+claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp#489170e
 ```
 
 Claude Desktop:
@@ -25,7 +31,7 @@ Claude Desktop:
   "mcpServers": {
     "orgo": {
       "command": "npx",
-      "args": ["-y", "@orgo-ai/mcp"],
+      "args": ["-y", "github:nickvasilescu/orgo-mcp"],
       "env": {
         "ORGO_API_KEY": "sk_live_YOUR_KEY"
       }
@@ -53,8 +59,10 @@ Hosted Streamable HTTP server:
 PowerShell users can wrap the Claude Code command because PowerShell may mangle `--` when it reaches npm shims:
 
 ```powershell
-cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y @orgo-ai/mcp"
+cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp"
 ```
+
+> **About the GitHub install.** `npx` clones the repo and runs the `prepare` script to build `dist/` on first use, so the install takes a few seconds longer than a registry install. Subsequent invocations are cached. Once 4.x is published to `@orgo-ai/mcp`, switch the `args` back to `["-y", "@orgo-ai/mcp"]` for the registry path.
 
 ## Tools
 
