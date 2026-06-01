@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
 import { apiRequest, resolveFlyInstanceId } from "../client.js";
-import { handleError } from "../errors.js";
+import { handleError, HttpError } from "../errors.js";
 import { applyLimit, jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
@@ -56,9 +56,10 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_create_computer",
     title: "Create Computer",
-    description: "Create a virtual computer in a workspace. Boots in under 500ms. Returns computer ID and details. Use when a new VM is needed for a task; prefer `orgo_clone_computer` when an identical starting state is already configured elsewhere.",
+    description: "Create a virtual computer in a workspace. Boots in under 500ms. Returns computer ID and details. Provide `workspace` (name — created if it doesn't exist) or `workspace_id`. Use when a new VM is needed; prefer `orgo_clone_computer` when an identical starting state already exists.",
     inputSchema: {
-      workspace: z.string().min(1).describe("Workspace name (created automatically if doesn't exist)"),
+      workspace: z.string().min(1).optional().describe("Workspace name (created automatically if it doesn't exist). Provide this OR workspace_id."),
+      workspace_id: z.string().min(1).optional().describe("Target workspace ID. Provide this OR workspace (name)."),
       name: z.string().max(100).optional().describe("Computer name (auto-generated if omitted)"),
       os: z.enum(["linux"]).default("linux").describe("Operating system (only linux supported)"),
       ram: z.enum(["4", "8", "16", "32", "64"]).default("4").describe("RAM in GB"),
@@ -74,18 +75,46 @@ export function registerComputerTools(server: McpServer): void {
       idempotentHint: false,
       openWorldHint: true,
     },
-    handler: async ({ workspace, name, os, ram, cpu, gpu, resolution, image }) => {
+    handler: async ({ workspace, workspace_id, name, os, ram, cpu, gpu, resolution, image }) => {
       try {
         const apiKey = getApiKey();
+
+        // The platform requires a workspace_id (UUID). When only a name is
+        // given, resolve it — looking the workspace up, and creating it if it
+        // doesn't exist (preserves the documented "created automatically").
+        let wsId = workspace_id;
+        if (!wsId) {
+          if (!workspace) {
+            throw new Error("Provide either `workspace` (name) or `workspace_id`.");
+          }
+          try {
+            const found = (await apiRequest("GET", `projects/by-name/${encodeURIComponent(workspace)}`, apiKey)) as Record<string, unknown>;
+            wsId = (found.id as string) || ((found.project as Record<string, unknown> | undefined)?.id as string);
+          } catch (e) {
+            if (e instanceof HttpError && e.status === 404) {
+              const made = (await apiRequest("POST", "projects", apiKey, { json: { name: workspace } })) as Record<string, unknown>;
+              wsId = (made.id as string) || ((made.project as Record<string, unknown> | undefined)?.id as string);
+            } else {
+              throw e;
+            }
+          }
+          if (!wsId) throw new Error(`Could not resolve or create workspace "${workspace}".`);
+        }
+
+        // The platform requires a name; generate a unique one when omitted.
+        const computerName = name || `computer-${Math.random().toString(36).slice(2, 8)}`;
+
         const body: Record<string, unknown> = {
-          project: workspace,
+          workspace_id: wsId,
+          name: computerName,
           os,
           ram: parseInt(ram),
           cpu: parseInt(cpu),
-          gpu,
           resolution,
         };
-        if (name) body.name = name;
+        // gpu is accepted for forward-compat; the platform currently ignores
+        // anything other than the default, so only send a non-default value.
+        if (gpu && gpu !== "none") body.gpu = gpu;
         if (image) body.image = image;
 
         const data = await apiRequest("POST", "computers", apiKey, { json: body, timeout: 60000 });
@@ -260,8 +289,10 @@ export function registerComputerTools(server: McpServer): void {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
         const body: Record<string, unknown> = {};
-        if (cpu !== undefined) body.cpu = cpu;
-        if (ram !== undefined) body.ram = ram;
+        // The platform's resize endpoint names CPU/RAM `vcpus`/`mem_gb`
+        // (GB). Sending `cpu`/`ram` is silently dropped — they aren't read.
+        if (cpu !== undefined) body.vcpus = cpu;
+        if (ram !== undefined) body.mem_gb = ram;
         if (disk_size_gb !== undefined) body.disk_size_gb = disk_size_gb;
         if (bandwidth_limit_mbps !== undefined) body.bandwidth_limit_mbps = bandwidth_limit_mbps;
         const data = await apiRequest("PATCH", `computers/${id}/resize`, apiKey, { json: body });

@@ -138,7 +138,9 @@ export function registerWorkspaceTools(server: McpServer): void {
     handler: async ({ workspace_id }) => {
       try {
         const apiKey = getApiKey();
-        const data = await apiRequest("DELETE", `projects/${workspace_id}`, apiKey);
+        // Workspace deletion is POST /projects/{id}/delete on the platform
+        // (DELETE /projects/{id} is not allowed → 405).
+        const data = await apiRequest("POST", `projects/${workspace_id}/delete`, apiKey);
         return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };

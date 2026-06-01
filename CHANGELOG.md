@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.1
+
+- Fix `orgo_create_computer` against the current platform: the create endpoint now requires `workspace_id` (a UUID) and a `name`, and no longer accepts a `project` name or auto-creates workspaces. The tool now resolves the `workspace` name to an ID (creating the workspace if it doesn't exist, preserving the documented behavior), always sends a name (auto-generated when omitted), and accepts an optional `workspace_id` directly. Previously every create failed with `400 workspace_id is required`.
+- Fix `orgo_delete_workspace`: delete via `POST /projects/{id}/delete` (the platform returns `405` for `DELETE /projects/{id}`). Previously every workspace delete failed with `405`.
+- Fix `orgo_resize_computer`: map `cpu`/`ram` to the platform's `vcpus`/`mem_gb` fields. Previously CPU/RAM resizes were silently dropped (the endpoint ignored the unknown keys and returned `200` unchanged); disk and bandwidth were unaffected.
+- Add `scripts/e2e-full.mjs` (`npm run test:full`): an end-to-end harness that provisions a throwaway workspace + computer and validates every one of the 28 tools against the live API with explicit per-tool success criteria — including the lifecycle, screen-action, shell, and file tools the existing `test:live` did not exercise — then deletes everything it created. Emits a tool→criterion→result matrix. (Known platform gap surfaced as a WARN, not an MCP bug: the VM's `/files/export` endpoint currently returns `404`, so `orgo_export_file` round-trips fail end-to-end though the tool itself is correct.)
+
 ## 4.0.0
 
 - Make the TypeScript MCP server the only supported implementation in the repository.
