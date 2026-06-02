@@ -40,7 +40,8 @@ Claude Desktop:
 }
 ```
 
-Hosted Streamable HTTP server:
+Hosted Streamable HTTP server (Claude Code, Cursor, VS Code, and other clients
+that support remote MCP over HTTP):
 
 ```json
 {
@@ -51,6 +52,36 @@ Hosted Streamable HTTP server:
       "headers": {
         "X-Orgo-API-Key": "${ORGO_API_KEY}",
         "X-Orgo-Default-Computer-Id": "your-computer-id"
+      }
+    }
+  }
+}
+```
+
+The exact shape varies by client: **Cursor** omits `type` (it infers the
+transport from `url`), **Windsurf** names the field `serverUrl`, and **VS Code**
+nests servers under a `servers` key instead of `mcpServers`.
+
+**Claude Desktop is the exception** — `claude_desktop_config.json` is stdio-only
+and will not start a `type: http` entry. To reach the hosted endpoint from
+Claude Desktop, bridge it with [`mcp-remote`](https://github.com/geelen/mcp-remote)
+(still a stdio command under `mcpServers`):
+
+```json
+{
+  "mcpServers": {
+    "orgo": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "https://orgo-mcp.onrender.com/mcp",
+        "--transport", "http-only",
+        "--header", "X-Orgo-API-Key:${ORGO_API_KEY}",
+        "--header", "X-Orgo-Default-Computer-Id:${ORGO_DEFAULT_COMPUTER_ID}"
+      ],
+      "env": {
+        "ORGO_API_KEY": "sk_live_YOUR_KEY",
+        "ORGO_DEFAULT_COMPUTER_ID": "your-computer-id"
       }
     }
   }
