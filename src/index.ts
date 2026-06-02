@@ -40,7 +40,7 @@ async function startHttp(): Promise<void> {
   );
   const { isInitializeRequest } = await import("@modelcontextprotocol/sdk/types.js");
   const { randomUUID } = await import("node:crypto");
-  const { runWithApiKey } = await import("./auth.js");
+  const { runWithRequestContext } = await import("./auth.js");
   const http = await import("node:http");
 
   type TransportInstance = InstanceType<typeof StreamableHTTPServerTransport>;
@@ -88,6 +88,15 @@ async function startHttp(): Promise<void> {
       return;
     }
 
+    // Optional per-request default computer. On a shared hosted server the
+    // env var ORGO_DEFAULT_COMPUTER_ID can't be set per user, so accept it
+    // per request: the X-Orgo-Default-Computer-Id header (preferred), or a
+    // ?computer_id= query param for clients that can only configure a URL.
+    const defaultComputerId =
+      (req.headers["x-orgo-default-computer-id"] as string | undefined) ||
+      url.searchParams.get("computer_id") ||
+      undefined;
+
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     // GET = SSE event stream, DELETE = session termination (no body needed)
@@ -95,7 +104,7 @@ async function startHttp(): Promise<void> {
       if (sessionId && sessions.has(sessionId)) {
         const entry = sessions.get(sessionId)!;
         entry.lastAccess = Date.now();
-        await runWithApiKey(apiKey, async () => {
+        await runWithRequestContext({ apiKey, defaultComputerId }, async () => {
           await entry.transport.handleRequest(req, res);
         });
         return;
@@ -128,7 +137,7 @@ async function startHttp(): Promise<void> {
     if (sessionId && sessions.has(sessionId)) {
       const entry = sessions.get(sessionId)!;
       entry.lastAccess = Date.now();
-      await runWithApiKey(apiKey, async () => {
+      await runWithRequestContext({ apiKey, defaultComputerId }, async () => {
         await entry.transport.handleRequest(req, res, body);
       });
       return;
@@ -152,7 +161,7 @@ async function startHttp(): Promise<void> {
       const mcpServer = createOrgoMcpServer();
       await mcpServer.connect(transport);
 
-      await runWithApiKey(apiKey, async () => {
+      await runWithRequestContext({ apiKey, defaultComputerId }, async () => {
         await transport.handleRequest(req, res, body);
       });
       return;

@@ -2,24 +2,36 @@
  * API key and computer ID resolution for Orgo MCP.
  *
  * Supports two modes:
- * - HTTP transport: key from X-Orgo-API-Key request header (via AsyncLocalStorage)
- * - stdio transport: key from ORGO_API_KEY environment variable
+ * - HTTP transport: per-request context (X-Orgo-API-Key header; optional
+ *   X-Orgo-Default-Computer-Id header / ?computer_id=) via AsyncLocalStorage
+ * - stdio transport: ORGO_API_KEY / ORGO_DEFAULT_COMPUTER_ID environment vars
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-const apiKeyStore = new AsyncLocalStorage<string>();
+/** Per-request context, carried across one MCP request on the HTTP transport. */
+interface RequestContext {
+  apiKey: string;
+  /**
+   * Default computer for this request when a tool omits computer_id. Lets a
+   * SHARED hosted server pin a computer per connection — the env var
+   * ORGO_DEFAULT_COMPUTER_ID can't be per-user on a multi-tenant host.
+   */
+  defaultComputerId?: string;
+}
+
+const requestStore = new AsyncLocalStorage<RequestContext>();
 
 /**
  * Get the API key for the current request.
  *
  * Priority:
- * 1. AsyncLocalStorage (HTTP transport, set by middleware)
+ * 1. AsyncLocalStorage request context (HTTP transport, set by middleware)
  * 2. ORGO_API_KEY environment variable (stdio transport)
  */
 export function getApiKey(): string {
-  const requestKey = apiKeyStore.getStore();
-  if (requestKey) return requestKey;
+  const ctx = requestStore.getStore();
+  if (ctx?.apiKey) return ctx.apiKey;
 
   const envKey = process.env.ORGO_API_KEY;
   if (envKey) return envKey;
@@ -31,24 +43,39 @@ export function getApiKey(): string {
 }
 
 /**
- * Resolve computer_id from explicit param or ORGO_DEFAULT_COMPUTER_ID env var.
+ * Resolve computer_id, in order: an explicit param, the per-request default
+ * (HTTP: X-Orgo-Default-Computer-Id header / ?computer_id=), then the
+ * ORGO_DEFAULT_COMPUTER_ID env var (stdio).
  */
 export function resolveComputerId(computerId?: string): string {
   if (computerId) return computerId;
+
+  const requestDefault = requestStore.getStore()?.defaultComputerId;
+  if (requestDefault) return requestDefault;
 
   const defaultId = process.env.ORGO_DEFAULT_COMPUTER_ID;
   if (defaultId) return defaultId;
 
   throw new Error(
-    "computer_id required. Either pass it explicitly or set ORGO_DEFAULT_COMPUTER_ID env var."
+    "computer_id required. Pass it explicitly, or set a default " +
+      "(HTTP: X-Orgo-Default-Computer-Id header or ?computer_id=; " +
+      "stdio: ORGO_DEFAULT_COMPUTER_ID env var)."
   );
 }
 
 /**
- * Run a function with a specific API key in context (for HTTP transport middleware).
+ * Run a function with a per-request context (HTTP transport middleware).
+ */
+export function runWithRequestContext<T>(ctx: RequestContext, fn: () => T): T {
+  return requestStore.run(ctx, fn);
+}
+
+/**
+ * Back-compat: run a function with only an API key in context. Prefer
+ * runWithRequestContext when a default computer is also available.
  */
 export function runWithApiKey<T>(key: string, fn: () => T): T {
-  return apiKeyStore.run(key, fn);
+  return requestStore.run({ apiKey: key }, fn);
 }
 
 /**
@@ -57,7 +84,7 @@ export function runWithApiKey<T>(key: string, fn: () => T): T {
  * (stdio transport), or null when no key is configured.
  */
 export function getApiKeySource(): "http_header" | "env:ORGO_API_KEY" | null {
-  if (apiKeyStore.getStore()) return "http_header";
+  if (requestStore.getStore()?.apiKey) return "http_header";
   if (process.env.ORGO_API_KEY) return "env:ORGO_API_KEY";
   return null;
 }

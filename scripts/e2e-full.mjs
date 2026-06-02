@@ -10,7 +10,8 @@
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { execSync } from "node:child_process";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { execSync, spawn as spawnProc } from "node:child_process";
 
 const apiKey = process.env.ORGO_API_KEY;
 if (!apiKey) { console.error("ORGO_API_KEY required"); process.exit(1); }
@@ -221,6 +222,53 @@ async function main() {
         }
       } else {
         record("orgo_move_computer", "skipped — 2nd workspace create failed", false, short(cw2.text));
+      }
+    }
+    // ---- 9. HTTP transport: per-request default computer (the remote/hosted path) ----
+    // The hosted server is one process shared by many users, so it can't pin a
+    // computer via the ORGO_DEFAULT_COMPUTER_ID env var. Instead the default
+    // rides on the request (X-Orgo-Default-Computer-Id header / ?computer_id=).
+    // Verify a tool with NO computer_id resolves to the header-pinned computer
+    // over HTTP, and that omitting it still errors cleanly.
+    {
+      const port = 18000 + Math.floor(Math.random() * 2000);
+      const baseUrl = `http://127.0.0.1:${port}`;
+      const srv = spawnProc(process.execPath, ["dist/index.js"], {
+        cwd: process.cwd(),
+        env: { ...process.env, MCP_TRANSPORT: "http", MCP_HOST: "127.0.0.1", PORT: String(port) },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let srvErr = "";
+      srv.stderr.on("data", (c) => { srvErr += c.toString(); });
+      try {
+        const deadline = Date.now() + 10000;
+        let healthy = false;
+        while (Date.now() < deadline) {
+          try { const r = await fetch(`${baseUrl}/health`); if (r.status === 200) { healthy = true; break; } } catch {}
+          await sleep(200);
+        }
+        if (!healthy) throw new Error(`HTTP server not healthy: ${srvErr}`);
+
+        const httpClient = async (headers) => {
+          const t = new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), { requestInit: { headers } });
+          const c = new Client({ name: "orgo-e2e-http", version: "0.0.0" });
+          await c.connect(t);
+          return c;
+        };
+
+        const cPinned = await httpClient({ "X-Orgo-API-Key": apiKey, "X-Orgo-Default-Computer-Id": compId });
+        const hd = await call(cPinned, "orgo_doctor");
+        record("orgo_doctor (http)", "auth source is http_header over HTTP transport", hd.json?.auth?.source === "http_header", `source=${hd.json?.auth?.source}`);
+        const gp = await call(cPinned, "orgo_get_computer", {});
+        record("X-Orgo-Default-Computer-Id (http)", "get_computer w/o computer_id resolves to the header-pinned computer", !gp.isError && gp.json?.id === compId, gp.isError ? short(gp.text) : `id=${gp.json?.id}`);
+        await cPinned.close();
+
+        const cBare = await httpClient({ "X-Orgo-API-Key": apiKey });
+        const gb = await call(cBare, "orgo_get_computer", {});
+        record("X-Orgo-Default-Computer-Id (http)", "no header + no computer_id -> clean 'computer_id required' error", gb.isError && /computer_id required/i.test(gb.text || ""), short(gb.text));
+        await cBare.close();
+      } finally {
+        srv.kill("SIGTERM");
       }
     }
   } finally {
