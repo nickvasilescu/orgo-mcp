@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.2
+
+- Add per-request **default computer** support for the HTTP/remote transport. A shared hosted server can't use the `ORGO_DEFAULT_COMPUTER_ID` env var (one process serves many users), so the default computer can now ride on the request: an **`X-Orgo-Default-Computer-Id`** header (preferred) or a **`?computer_id=`** query param on the `/mcp` URL. `resolveComputerId` now resolves in order: explicit tool arg → per-request default (HTTP) → `ORGO_DEFAULT_COMPUTER_ID` env var (stdio). This lets the hosted endpoint pin a computer per connection the way the local stdio server does via env. Fully backward-compatible — stdio behavior and the existing `X-Orgo-API-Key` header are unchanged. `scripts/e2e-full.mjs` now also exercises the HTTP transport + the default-computer header end-to-end.
+
 ## 4.0.1
 
 - Fix `orgo_create_computer` against the current platform: the create endpoint now requires `workspace_id` (a UUID) and a `name`, and no longer accepts a `project` name or auto-creates workspaces. The tool now resolves the `workspace` name to an ID (creating the workspace if it doesn't exist, preserving the documented behavior), always sends a name (auto-generated when omitted), and accepts an optional `workspace_id` directly. Previously every create failed with `400 workspace_id is required`.

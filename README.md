@@ -49,12 +49,19 @@ Hosted Streamable HTTP server:
       "type": "http",
       "url": "https://orgo-mcp.onrender.com/mcp",
       "headers": {
-        "X-Orgo-API-Key": "${ORGO_API_KEY}"
+        "X-Orgo-API-Key": "${ORGO_API_KEY}",
+        "X-Orgo-Default-Computer-Id": "your-computer-id"
       }
     }
   }
 }
 ```
+
+`X-Orgo-Default-Computer-Id` is optional: it pins a default computer for this
+connection so tool calls can omit `computer_id` (the remote equivalent of the
+`ORGO_DEFAULT_COMPUTER_ID` env var, which can't be per-user on a shared host).
+Clients that only let you configure a URL can pass it as a query param instead:
+`https://orgo-mcp.onrender.com/mcp?computer_id=your-computer-id`.
 
 PowerShell users can wrap the Claude Code command because PowerShell may mangle `--` when it reaches npm shims:
 
@@ -143,7 +150,7 @@ orgo_download_file
 | Variable | Default | Description |
 | --- | --- | --- |
 | `ORGO_API_KEY` | none | Required for stdio transport. HTTP deployments receive user keys via `X-Orgo-API-Key`. |
-| `ORGO_DEFAULT_COMPUTER_ID` | none | Default computer ID so tool calls can omit `computer_id`. |
+| `ORGO_DEFAULT_COMPUTER_ID` | none | Default computer ID so tool calls can omit `computer_id` (stdio). For HTTP, send a per-request `X-Orgo-Default-Computer-Id` header (or `?computer_id=`) instead. |
 | `MCP_TRANSPORT` | `stdio` | `stdio`, `http`, or `streamable-http`. |
 | `MCP_HOST` | `0.0.0.0` | HTTP bind address. |
 | `MCP_PORT` / `PORT` | `8000` | HTTP port. |
@@ -229,7 +236,7 @@ npm pack --dry-run
 | --- | --- |
 | `Invalid API key` | Check the Orgo API key and whether it is active. |
 | `X-Orgo-API-Key header required` | HTTP clients must send this header on `/mcp` requests. |
-| `computer_id required` | Pass `computer_id` or set `ORGO_DEFAULT_COMPUTER_ID`. |
+| `computer_id required` | Pass `computer_id`, set `ORGO_DEFAULT_COMPUTER_ID` (stdio), or send `X-Orgo-Default-Computer-Id` / `?computer_id=` (HTTP). |
 | `Connection refused` | Confirm the server is running and check `/health`. |
 | Tools not appearing | Check `ORGO_READ_ONLY`, `ORGO_TOOLSETS`, `ORGO_ENABLED_TOOLS`, and `ORGO_DISABLED_TOOLS`. |
 
