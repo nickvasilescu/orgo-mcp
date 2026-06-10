@@ -120,7 +120,7 @@ Text responses are sanitized before they are returned to the MCP client, so pass
 
 ### Compact mode for read tools
 
-Pass `compact: true` to any read tool (`orgo_list_workspaces`, `orgo_get_workspace`, `orgo_workspace_by_name`, `orgo_list_computers`, `orgo_get_computer`, `orgo_list_files`) to drop noisy fields like `instance_details`, `template_build_id`, and `user_id` from the response. Keeps `id`, `name`, `status`, timestamps, and key resource fields (`cpu`, `ram`, `os`, `disk_size_gb`, `fly_instance_id`, file `size`/`path`). Typical savings: 50%+ on list endpoints. Recommended for agent contexts where response size affects available tokens.
+Read tools (`orgo_list_workspaces`, `orgo_get_workspace`, `orgo_workspace_by_name`, `orgo_list_computers`, `orgo_get_computer`, `orgo_list_files`) are **compact by default since 4.1.0**: noisy fields like `instance_details`, `template_build_id`, and `user_id` are dropped, keeping `id`, `name`, `status`, timestamps, and key resource fields (`cpu`, `ram`, `os`, `disk_size_gb`, `fly_instance_id`, file `size`/`path`). Typical savings: 50%+ on list endpoints (a 290 KB workspace list shrinks to ~50 KB). Pass `compact: false` when you need the complete raw payload. Responses are also no longer pretty-printed — both changes affect default response shape if you upgraded from ≤4.0.x.
 
 ### Health check (`orgo_doctor`)
 
@@ -154,13 +154,13 @@ Examples:
 
 ```bash
 # Observation-only mode
-ORGO_READ_ONLY=true npx -y @orgo-ai/mcp
+ORGO_READ_ONLY=true npx -y github:nickvasilescu/orgo-mcp
 
 # Browserless VM control without shell access
-ORGO_TOOLSETS=core,screen,files npx -y @orgo-ai/mcp
+ORGO_TOOLSETS=core,screen,files npx -y github:nickvasilescu/orgo-mcp
 
 # Keep shell enabled, but remove bash
-ORGO_TOOLSETS=shell ORGO_DISABLED_TOOLS=orgo_bash npx -y @orgo-ai/mcp
+ORGO_TOOLSETS=shell ORGO_DISABLED_TOOLS=orgo_bash npx -y github:nickvasilescu/orgo-mcp
 ```
 
 Read-only mode currently exposes:
@@ -172,8 +172,10 @@ orgo_workspace_by_name
 orgo_list_computers
 orgo_get_computer
 orgo_screenshot
+orgo_wait
 orgo_list_files
 orgo_download_file
+orgo_doctor
 ```
 
 ## Environment Variables

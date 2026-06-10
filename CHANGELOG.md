@@ -1,5 +1,32 @@
 # Changelog
 
+## 4.1.0
+
+Platform-drift fixes from the June 2026 full audit (all findings live-verified against production):
+
+**Fixed**
+- **VM auth: `desktop_api_token`.** New metal-image VMs issue a desktop-API token distinct from the VNC password and reject `Bearer <vncPassword>` with 401 — which broke `orgo_screenshot` (direct-only) and every direct-VM fallback path on those VMs. The client now authenticates with `desktop_api_token ?? password` from `GET /computers/{id}/vnc-password`, correct for both old and new images.
+- **`orgo_bash` terminal transport.** The WSS terminal connected to the computer's `url` with `?token=` — but `url` points at the noVNC port on most VMs (accepts anything, speaks RFB, hangs 30 s with no fallback) and the API port rejects the query-string token form. It now connects to `host:apiPort/terminal` with `Authorization: Bearer <vm token>`, and a dead connection rejects (triggering the REST fallback) instead of hanging.
+- **`orgo_bash` timeout semantics.** New `timeout` input (1–300 s, default 30). On timeout, partial output is returned with an explicit `[orgo_bash: timed out …]` marker instead of being silently presented as success, and the connection is disposed so the still-running command can't bleed into the next call. Commands now also report `[exit code: N]` on non-zero exit.
+- **Cross-tenant cache isolation.** On the shared HTTP host, the terminal connection pool and VM-token cache were keyed by computer ID alone — a cache hit could hand one tenant another tenant's authenticated terminal or credentials. Both are now keyed by (API key, computer).
+- **`orgo_workspace_by_name`** URL-encodes the name (names containing `/` 404'd; `#`/`?` silently truncated).
+- **`serverInfo.version`** now reads from package.json — the hardcoded constant had been reporting 4.0.0 since two releases ago.
+- **`orgo_restart_computer`** invalidates cached VM credentials/endpoints and pooled terminal sessions for the restarted computer.
+- **`orgo_exec` / `orgo_bash` REST fallback** HTTP timeouts now outlast the command's own timeout budget (previously a 300 s exec rode on a 30 s HTTP timeout).
+
+**Hardened (adversarial review pass)**
+- Commands on one terminal connection are strictly serialized; each command's timeout starts at dispatch. Previously, concurrent `orgo_bash` calls shared one WebSocket — a peer's timeout disposal could strip a live listener and re-execute an already-submitted command via the REST fallback.
+- The connection pool stores the connect promise (set before the first await), so concurrent callers share one handshake instead of leaking N−1 WebSockets; `connect()` also guards against overlapping handshakes.
+- Commands ship base64-encoded inside `eval "$(printf %s '<b64>' | base64 -d)"`, so heredocs, comments, trailing `&`, quotes, and newlines can never interact with the sentinel wrapper (heredocs previously hung the session to full timeout).
+- Sentinels are emitted via `printf '\n…'`, so a command whose output lacks a trailing newline no longer false-times-out.
+- A 401 from a direct VM request evicts the cached token and retries once with a fresh one — externally-initiated restarts/token rotations now self-heal instead of breaking screenshot/bash until process restart; total terminal-connect failure also evicts.
+
+**Changed**
+- **`compact` now defaults to `true`** on list/get tools (pass `compact: false` for the full payload), and JSON responses are no longer pretty-printed — together cutting typical response sizes ~5-10× for agent contexts.
+- Direct-VM calls cache `instance_details` for 60 s, eliminating 1–2 platform round trips per screenshot.
+- Removed the dead `ORGO_V1_BASE` constant (`api.orgo.ai/api/v1` — pre-migration, 404s on every path).
+- README: read-only mode list now matches the actual annotations (adds `orgo_wait`, `orgo_doctor`); remaining `npx @orgo-ai/mcp` examples point at the GitHub install until 4.x ships on npm.
+
 ## 4.0.2
 
 - Add per-request **default computer** support for the HTTP/remote transport. A shared hosted server can't use the `ORGO_DEFAULT_COMPUTER_ID` env var (one process serves many users), so the default computer can now ride on the request: an **`X-Orgo-Default-Computer-Id`** header (preferred) or a **`?computer_id=`** query param on the `/mcp` URL. `resolveComputerId` now resolves in order: explicit tool arg → per-request default (HTTP) → `ORGO_DEFAULT_COMPUTER_ID` env var (stdio). This lets the hosted endpoint pin a computer per connection the way the local stdio server does via env. Fully backward-compatible — stdio behavior and the existing `X-Orgo-API-Key` header are unchanged. `scripts/e2e-full.mjs` now also exercises the HTTP transport + the default-computer header end-to-end.

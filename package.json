@@ -1,7 +1,7 @@
 {
   "name": "@orgo-ai/mcp",
-  "version": "4.0.2",
-  "description": "MCP server for Orgo virtual computer control — works with Claude Code, Claude Desktop, and any MCP client",
+  "version": "4.1.0",
+  "description": "MCP server for Orgo virtual computer control \u2014 works with Claude Code, Claude Desktop, and any MCP client",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

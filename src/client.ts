@@ -3,20 +3,39 @@
  *
  * Two routing strategies:
  * - Platform API proxy for computer actions (click, type, screenshot, bash, etc.)
- * - Direct VM connection as fallback (uses VNC password + instance_details)
+ * - Direct VM connection as fallback (uses the VM desktop-API token + instance_details)
  *
  * Computer actions route through /api/computers/{id}/{action}, which handles
  * VM port resolution internally. Falls back to direct VM connection on errors.
+ *
+ * VM auth: new metal-image VMs issue a `desktop_api_token` distinct from the
+ * VNC password and reject `Bearer <vncPassword>`; older cold-boot images set
+ * desktop_api_token == password. GET /computers/{id}/vnc-password returns both,
+ * so `desktop_api_token ?? password` is correct for every image generation.
  */
 
+import { createHash } from "node:crypto";
 import { HttpError } from "./errors.js";
-import type { ComputerInfo, VncPasswordResponse } from "./types.js";
+import type { ComputerInfo, InstanceDetails, VncPasswordResponse } from "./types.js";
 
 const ORGO_API_BASE = "https://www.orgo.ai/api";
-const ORGO_V1_BASE = "https://api.orgo.ai/api/v1";
 
-// Cache VNC passwords per computer
-const vncPasswordCache = new Map<string, string>();
+// Caches are keyed by (api key, computer) — never by computer alone. The HTTP
+// transport hosts many tenants in one process; a computer-only key would serve
+// tenant A's credentials/connections to tenant B on a cache hit.
+function tenantKey(apiKey: string, computerId: string): string {
+  const keyHash = createHash("sha256").update(apiKey).digest("hex").slice(0, 16);
+  return `${keyHash}:${computerId}`;
+}
+
+// VM desktop-API tokens, keyed by tenantKey.
+const vmTokenCache = new Map<string, string>();
+
+// instance_details (host/port) per computer, keyed by tenantKey, with a short
+// TTL — ports only change on restart, and refetching via ensure-running on
+// every direct call added 1-2 round trips per screenshot.
+const INSTANCE_DETAILS_TTL_MS = 60_000;
+const instanceDetailsCache = new Map<string, { details: ComputerInfo; expires: number }>();
 
 function authHeaders(apiKey: string): Record<string, string> {
   return {
@@ -76,10 +95,14 @@ async function apiRequest(
 }
 
 /**
- * Fetch and cache VNC password for a computer.
+ * Fetch and cache the VM desktop-API auth token for a computer.
+ *
+ * Prefers `desktop_api_token` (required by new metal-image VMs) and falls back
+ * to the VNC password (== the token on older images).
  */
-async function getVncPassword(computerId: string, apiKey: string): Promise<string> {
-  const cached = vncPasswordCache.get(computerId);
+async function getVmAuthToken(computerId: string, apiKey: string): Promise<string> {
+  const cacheKey = tenantKey(apiKey, computerId);
+  const cached = vmTokenCache.get(cacheKey);
   if (cached) return cached;
 
   const data = (await apiRequest(
@@ -89,17 +112,58 @@ async function getVncPassword(computerId: string, apiKey: string): Promise<strin
     { timeout: 15000 }
   )) as unknown as VncPasswordResponse;
 
-  const password = data.password;
-  if (!password) {
-    throw new Error(`Could not get VNC password for computer ${computerId}`);
+  const token = data.desktop_api_token || data.password;
+  if (!token) {
+    throw new Error(`Could not get VM auth token for computer ${computerId}`);
   }
 
-  vncPasswordCache.set(computerId, password);
-  return password;
+  vmTokenCache.set(cacheKey, token);
+  return token;
+}
+
+/**
+ * Resolve the VM's direct connection info (host + apiPort), with a short TTL
+ * cache. Uses ensure-running so suspended VMs come back with fresh ports.
+ */
+async function getInstanceInfo(computerId: string, apiKey: string): Promise<ComputerInfo> {
+  const cacheKey = tenantKey(apiKey, computerId);
+  const cached = instanceDetailsCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) return cached.details;
+
+  const info = (await apiRequest(
+    "POST",
+    `computers/${computerId}/ensure-running`,
+    apiKey,
+    { timeout: 15000 }
+  )) as unknown as ComputerInfo;
+
+  instanceDetailsCache.set(cacheKey, { details: info, expires: Date.now() + INSTANCE_DETAILS_TTL_MS });
+  return info;
+}
+
+/**
+ * Resolve the direct VM endpoint (host + apiPort) for WebSocket/HTTP access.
+ */
+async function getVmEndpoint(
+  computerId: string,
+  apiKey: string
+): Promise<{ host: string; apiPort: number } | null> {
+  const info = await getInstanceInfo(computerId, apiKey);
+  const details: InstanceDetails = info.instance_details || {};
+  const host = details.publicHost || details.vncHost;
+  if (details.apiPort && host) {
+    return { host, apiPort: details.apiPort };
+  }
+  return null;
 }
 
 /**
  * Make a request directly to the VM, bypassing the platform proxy.
+ *
+ * On a 401 the cached token is evicted and the request retried once with a
+ * fresh one — VMs rotate their token when restarted outside this process, and
+ * without the retry a stale cache entry would break direct calls until the
+ * MCP process itself restarts.
  */
 async function directVmRequest(
   method: string,
@@ -110,59 +174,64 @@ async function directVmRequest(
 ): Promise<Record<string, unknown>> {
   const { json: body, timeout = 30000 } = options;
 
-  const vncPassword = await getVncPassword(computerId, apiKey);
+  const attempt = async (): Promise<Record<string, unknown>> => {
+    const vmToken = await getVmAuthToken(computerId, apiKey);
+    const info = await getInstanceInfo(computerId, apiKey);
 
-  // Use ensure-running to get fresh instance_details (ports change on restart)
-  const info = (await apiRequest(
-    "POST",
-    `computers/${computerId}/ensure-running`,
-    apiKey,
-    { timeout: 15000 }
-  )) as unknown as ComputerInfo;
+    const details = info.instance_details || {};
+    const apiPort = details.apiPort;
+    const host = details.publicHost || details.vncHost;
 
-  const details = info.instance_details || {};
-  const apiPort = details.apiPort;
-  const host = details.publicHost || details.vncHost;
-
-  let directUrl: string;
-  if (apiPort && host) {
-    directUrl = `http://${host}:${apiPort}`;
-  } else {
-    directUrl = (info.url || "").replace(/\/+$/, "");
-  }
-
-  if (!directUrl) {
-    throw new Error(`Could not resolve VM URL for computer ${computerId}`);
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(`${directUrl}/${endpoint}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${vncPassword}`,
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      let detail = "";
-      try {
-        const errJson = (await response.json()) as Record<string, unknown>;
-        detail = (errJson.error as string) || "";
-      } catch {
-        // ignore
-      }
-      throw new HttpError(response.status, detail, response.statusText);
+    let directUrl: string;
+    if (apiPort && host) {
+      directUrl = `http://${host}:${apiPort}`;
+    } else {
+      directUrl = (info.url || "").replace(/\/+$/, "");
     }
 
-    return (await response.json()) as Record<string, unknown>;
-  } finally {
-    clearTimeout(timer);
+    if (!directUrl) {
+      throw new Error(`Could not resolve VM URL for computer ${computerId}`);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(`${directUrl}/${endpoint}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${vmToken}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const errJson = (await response.json()) as Record<string, unknown>;
+          detail = (errJson.error as string) || "";
+        } catch {
+          // ignore
+        }
+        throw new HttpError(response.status, detail, response.statusText);
+      }
+
+      return (await response.json()) as Record<string, unknown>;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    return await attempt();
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 401) {
+      clearVncCache(computerId);
+      return attempt();
+    }
+    throw e;
   }
 }
 
@@ -290,23 +359,30 @@ async function uploadFile(
 }
 
 /**
- * Clear cached VNC password for a computer (e.g., after restart).
+ * Clear cached VM credentials/endpoints for a computer (e.g., after restart),
+ * across all tenants that cached it.
  */
 function clearVncCache(computerId?: string): void {
   if (computerId) {
-    vncPasswordCache.delete(computerId);
+    for (const cache of [vmTokenCache, instanceDetailsCache]) {
+      for (const key of cache.keys()) {
+        if (key.endsWith(`:${computerId}`)) cache.delete(key);
+      }
+    }
   } else {
-    vncPasswordCache.clear();
+    vmTokenCache.clear();
+    instanceDetailsCache.clear();
   }
 }
 
 export {
   ORGO_API_BASE,
-  ORGO_V1_BASE,
   apiRequest,
   computerAction,
   resolveFlyInstanceId,
-  getVncPassword,
+  getVmAuthToken,
+  getVmEndpoint,
   uploadFile,
   clearVncCache,
+  tenantKey,
 };

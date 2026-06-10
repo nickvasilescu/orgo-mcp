@@ -2,11 +2,15 @@
  * Orgo MCP Server -- McpServer instantiation and tool registration.
  */
 
+import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAllTools } from "./tools/index.js";
 import { getToolPolicySummary } from "./tools/policy.js";
 
-const VERSION = "4.0.0";
+// Single source of truth — a hardcoded constant here shipped "4.0.0" in
+// serverInfo for two releases after package.json moved on.
+const require = createRequire(import.meta.url);
+const VERSION: string = (require("../package.json") as { version: string }).version;
 
 const ORGO_MCP_INSTRUCTIONS = `
 # Orgo MCP -- Tool Selection Guide

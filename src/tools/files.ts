@@ -10,7 +10,7 @@ import { handleError } from "../errors.js";
 import { applyLimit, jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
-const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Recommended for agent contexts to minimize token usage.";
+const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Defaults to true to minimize token usage; pass false when you need the complete payload.";
 const LIMIT_DESC = "Optional cap on the number of items returned. The Orgo API doesn't paginate server-side, so this trims client-side. When set and truncation occurs, the response includes `total` and `truncated: true`. Omit to return everything (current default).";
 
 export function registerFileTools(server: McpServer): void {
@@ -21,7 +21,7 @@ export function registerFileTools(server: McpServer): void {
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID"),
       computer_id: z.string().optional().describe("Optional computer ID to filter by"),
-      compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
+      compact: z.boolean().optional().default(true).describe(COMPACT_DESC),
       limit: z.number().int().min(1).max(500).optional().describe(LIMIT_DESC),
     },
     toolsets: ["files"],

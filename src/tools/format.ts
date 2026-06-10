@@ -26,8 +26,10 @@ export function sanitizeForMcp(value: unknown, seen = new WeakSet<object>()): un
   return sanitized;
 }
 
+// No pretty-print indentation: MCP responses are consumed by models, and the
+// 2-space indent was pure token overhead on every response.
 export function jsonText(value: unknown): string {
-  return JSON.stringify(sanitizeForMcp(value), null, 2);
+  return JSON.stringify(sanitizeForMcp(value));
 }
 
 // Keys preserved by compactProjection — identity, status, timestamps, key

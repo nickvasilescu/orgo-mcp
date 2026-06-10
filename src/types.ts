@@ -23,6 +23,11 @@ export interface ComputerInfo extends OrgoApiResponse {
 
 export interface VncPasswordResponse {
   password: string;
+  /**
+   * VM desktop-API auth token. New metal-image VMs require this and reject the
+   * VNC password; older images return it equal to the password.
+   */
+  desktop_api_token?: string;
 }
 
 export interface ScreenshotResponse {
