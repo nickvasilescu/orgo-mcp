@@ -29,6 +29,17 @@ jobs:
       - name: Smoke test HTTP transport
         run: npm run test:http
 
+      # npm test rebuilt dist/ from src/ above. The repo commits dist/ so the
+      # GitHub install (npx github:…) works without a prepare/build step — so
+      # a src/ change without a rebuilt dist/ must fail CI here.
+      - name: Verify committed dist/ is current
+        run: |
+          if [ -n "$(git status --porcelain -- dist)" ]; then
+            git status --porcelain -- dist
+            echo "::error::dist/ is stale — run 'npm run build' and commit the result."
+            exit 1
+          fi
+
       - name: Verify package contents
         run: |
           npm pack --dry-run --json --ignore-scripts > pack.json

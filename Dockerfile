@@ -29,7 +29,6 @@ FROM node:22-slim AS runtime
 # Labels for container metadata
 LABEL org.opencontainers.image.title="Orgo MCP Server" \
       org.opencontainers.image.description="MCP server for AI agents to control virtual computers via Orgo" \
-      org.opencontainers.image.version="4.0.0" \
       org.opencontainers.image.vendor="Orgo" \
       org.opencontainers.image.source="https://github.com/nickvasilescu/orgo-mcp" \
       org.opencontainers.image.licenses="MIT"

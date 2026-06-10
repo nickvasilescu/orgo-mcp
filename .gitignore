@@ -1,7 +1,10 @@
 # Node.js
 node_modules/
-dist/
 *.tgz
+
+# dist/ is committed on purpose: the package installs from GitHub
+# (npx github:nickvasilescu/orgo-mcp) with no prepare script, so the
+# prebuilt output must be in the repo. CI fails if it goes stale.
 
 # IDE
 .idea/
