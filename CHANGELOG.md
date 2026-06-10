@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.1.1
+
+Install-speed release: the GitHub install path is now registry-fast. (npm publish of 4.x remains blocked on registry access, so `github:` is the canonical install.)
+
+- **Prebuilt `dist/` is committed** and the `prepare` script is removed. `npx -y github:nickvasilescu/orgo-mcp` no longer clones + installs the TypeScript toolchain + compiles (~13 s cold); it fetches the repo and installs only the three runtime deps.
+- **CI guards `dist/` freshness** — a `src/` change without a matching rebuilt `dist/` fails the build, so `main` can't drift from its committed output.
+- Removed the stale hardcoded `4.0.0` version label from the Dockerfile (the image inherits its version from package.json at build time; the label had already drifted twice).
+- README install docs rewritten around the GitHub path; production pins now use release tags (`#v4.1.1`).
+
+No tool behavior changes.
+
 ## 4.1.0
 
 Platform-drift fixes from the June 2026 full audit (all findings live-verified against production):

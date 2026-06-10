@@ -2,7 +2,7 @@
 
 Official MCP server for controlling [Orgo](https://orgo.ai) cloud computers from Claude Code, Claude Desktop, and other Model Context Protocol clients.
 
-This package is TypeScript-first. The current 4.x line is installable directly from GitHub today; the npm publish to `@orgo-ai/mcp` is pending — only 3.0.0 is on npm right now, so `npx @orgo-ai/mcp` will fetch the older release until 4.0.0 ships there.
+**Install from GitHub, not npm.** The canonical install is `npx -y github:nickvasilescu/orgo-mcp` — the repo ships prebuilt `dist/`, so this is a fast registry-style install (no compile step). The npm registry still has the obsolete 3.0.0; do **not** use `npx @orgo-ai/mcp` until a 4.x release lands there.
 
 ## Quick Start
 
@@ -12,16 +12,16 @@ Sign up or log in at [orgo.ai](https://orgo.ai), then copy an API key from **Set
 
 ### 2. Add the MCP server
 
-The recommended install path right now uses the GitHub URL so you get the current 4.x build (compact mode, limit, `orgo_doctor`, etc.). Pin to a commit SHA for production stability; omit the `#sha` to track the `main` branch.
+The install path uses the GitHub URL so you get the current 4.x build (compact mode, limit, `orgo_doctor`, etc.). Pin to a release tag for production stability; omit the `#ref` to track the `main` branch.
 
 Claude Code:
 
 ```bash
-# Latest from main (auto-builds on install)
+# Latest from main (prebuilt — installs in seconds)
 claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp
 
-# Or pin to a specific commit
-claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp#489170e
+# Or pin to a release tag
+claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp#v4.1.1
 ```
 
 Claude Desktop:
@@ -100,7 +100,7 @@ PowerShell users can wrap the Claude Code command because PowerShell may mangle 
 cmd /c "claude mcp add orgo -e ORGO_API_KEY=sk_live_YOUR_KEY -- npx -y github:nickvasilescu/orgo-mcp"
 ```
 
-> **About the GitHub install.** `npx` clones the repo and runs the `prepare` script to build `dist/` on first use, so the install takes a few seconds longer than a registry install. Subsequent invocations are cached. Once 4.x is published to `@orgo-ai/mcp`, switch the `args` back to `["-y", "@orgo-ai/mcp"]` for the registry path.
+> **About the GitHub install.** The repo commits prebuilt `dist/` and has no `prepare` script, so `npx` fetches the repo and installs only the three runtime dependencies — no TypeScript toolchain, no compile. Cold installs take a few seconds; subsequent invocations are cached. CI rejects any commit whose `dist/` doesn't match `src/`, so `main` is always runnable.
 
 ## Tools
 
@@ -253,8 +253,11 @@ CI runs:
 - TypeScript build from a clean `dist/`
 - MCP tool-list smoke tests for default, read-only, toolset, allowlist, and denylist policies
 - HTTP transport health and auth smoke tests
+- committed-`dist/` freshness check (rebuild must produce no diff)
 - npm package content checks
 - Docker image build
+
+`dist/` is committed so the GitHub install needs no build step — after changing `src/`, run `npm run build` and commit the regenerated `dist/` alongside.
 
 Before publishing:
 

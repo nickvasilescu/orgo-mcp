@@ -1,6 +1,6 @@
 {
   "name": "@orgo-ai/mcp",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "MCP server for Orgo virtual computer control \u2014 works with Claude Code, Claude Desktop, and any MCP client",
   "type": "module",
   "main": "dist/index.js",
@@ -24,7 +24,6 @@
     "test:tools": "node scripts/smoke-tools.mjs",
     "test:live": "npm run build && node scripts/e2e-live.mjs",
     "test:full": "npm run build && node scripts/e2e-full.mjs",
-    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
