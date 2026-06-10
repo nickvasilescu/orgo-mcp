@@ -154,13 +154,13 @@ Examples:
 
 ```bash
 # Observation-only mode
-ORGO_READ_ONLY=true npx -y @orgo-ai/mcp
+ORGO_READ_ONLY=true npx -y github:nickvasilescu/orgo-mcp
 
 # Browserless VM control without shell access
-ORGO_TOOLSETS=core,screen,files npx -y @orgo-ai/mcp
+ORGO_TOOLSETS=core,screen,files npx -y github:nickvasilescu/orgo-mcp
 
 # Keep shell enabled, but remove bash
-ORGO_TOOLSETS=shell ORGO_DISABLED_TOOLS=orgo_bash npx -y @orgo-ai/mcp
+ORGO_TOOLSETS=shell ORGO_DISABLED_TOOLS=orgo_bash npx -y github:nickvasilescu/orgo-mcp
 ```
 
 Read-only mode currently exposes:
@@ -172,8 +172,10 @@ orgo_workspace_by_name
 orgo_list_computers
 orgo_get_computer
 orgo_screenshot
+orgo_wait
 orgo_list_files
 orgo_download_file
+orgo_doctor
 ```
 
 ## Environment Variables

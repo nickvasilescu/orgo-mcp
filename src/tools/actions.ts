@@ -32,7 +32,7 @@ export function registerActionTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_screenshot",
     title: "Take Screenshot",
-    description: "Take a screenshot of the full VM display (all windows, desktop). Returns an image. Use to verify visual state before deciding the next action, and after click/type/drag where the response payload doesn't reflect what changed on screen.",
+    description: "Take a screenshot of the full VM display (all windows, desktop). Returns an image. Resumes the VM first if it was suspended. Use to verify visual state before deciding the next action, and after click/type/drag where the response payload doesn't reflect what changed on screen.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
     },

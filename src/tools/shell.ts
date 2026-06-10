@@ -18,10 +18,11 @@ export function registerShellTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_bash",
     title: "Run Bash",
-    description: "Execute a bash command on the VM. Uses WebSocket terminal (preferred) with REST API fallback. Prefer this over GUI clicks for anything scriptable — file ops, installs, git, curl, process management — and over `orgo_exec` when the task is a shell pipeline.",
+    description: "Execute a bash command on the VM. Uses WebSocket terminal (preferred) with REST API fallback. Returns output plus the exit code when non-zero. Prefer this over GUI clicks for anything scriptable — file ops, installs, git, curl, process management — and over `orgo_exec` when the task is a shell pipeline. For long-running commands (installs, builds), raise `timeout`.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
       command: z.string().min(1).describe("Bash command to execute"),
+      timeout: z.number().int().min(1).max(300).default(30).describe("Timeout in seconds. On timeout, partial output is returned with an explicit truncation marker."),
     },
     toolsets: ["shell"],
     annotations: {
@@ -30,22 +31,25 @@ export function registerShellTools(server: McpServer): void {
       idempotentHint: false,
       openWorldHint: true,
     },
-    handler: async ({ computer_id, command }) => {
+    handler: async ({ computer_id, command, timeout }) => {
       try {
         const apiKey = getApiKey();
         const id = resolveComputerId(computer_id);
+        const timeoutMs = timeout * 1000;
 
-        // Try Terminal WSS first (preferred -- persistent session, no stale ports)
+        // Try Terminal WSS first (preferred -- persistent session, exit codes)
         try {
-          const output = await executeViaTerminal(id, apiKey, command, 30000);
+          const output = await executeViaTerminal(id, apiKey, command, timeoutMs);
           return { content: [{ type: "text" as const, text: `$ ${command}\n\n${output}` }] };
         } catch {
           // WSS failed -- fall back to REST API
         }
 
-        // Fallback: REST bash API
+        // Fallback: REST bash API (HTTP timeout padded so the transport
+        // doesn't abort before the command's own budget elapses)
         const data = await computerAction("POST", id, "bash", apiKey, {
           json: { command },
+          timeout: timeoutMs + 5000,
         });
         const output = (data as Record<string, unknown>).output || "";
         return { content: [{ type: "text" as const, text: `$ ${command}\n\n${output}` }] };
@@ -77,6 +81,8 @@ export function registerShellTools(server: McpServer): void {
         const id = resolveComputerId(computer_id);
         const data = await computerAction("POST", id, "exec", apiKey, {
           json: { code, timeout },
+          // HTTP timeout must outlast the code's own budget
+          timeout: (timeout + 5) * 1000,
         });
         return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {

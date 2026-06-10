@@ -3,15 +3,24 @@
  *
  * Preferred over the HTTP bash API for shell execution:
  * - Persistent sessions (env vars and cwd preserved across commands)
- * - Routes through stable Fly proxy (no stale port issues)
  * - Real-time streaming output
+ * - Exit codes captured via the end sentinel
  *
- * Ported from utilities/terminal_wss.py.
+ * Transport: connects directly to the VM desktop API (host:apiPort/terminal).
+ * The previous transport used the computer's `url` field, which points at the
+ * noVNC port on old-image VMs — that port 101-accepts anything then speaks
+ * RFB, hanging the session with no fallback.
+ *
+ * Auth diverges by VM image (both live-verified June 2026):
+ * - new metal image: accepts `?token=<desktop_api_token>`, rejects Bearer
+ * - old image: accepts `Authorization: Bearer <password>`, rejects `?token=`
+ * so connect() tries the query form first (the growing fleet), then the
+ * header form. Both reject instantly on mismatch, so the retry is cheap.
  */
 
 import WebSocket from "ws";
-import { apiRequest, getVncPassword } from "./client.js";
-import type { ComputerInfo, TerminalMessage } from "./types.js";
+import { getVmAuthToken, getVmEndpoint, tenantKey } from "./client.js";
+import type { TerminalMessage } from "./types.js";
 
 // Comprehensive ANSI escape sequence regex:
 // CSI sequences, OSC sequences, single-char escapes, and mode changes
@@ -20,6 +29,8 @@ const ANSI_REGEX = /\x1b(?:\[[0-9;?]*[a-zA-Z]|\].*?(?:\x07|\x1b\\)|[()][AB012]|[
 function stripAnsi(text: string): string {
   return text.replace(ANSI_REGEX, "");
 }
+
+let commandCounter = 0;
 
 /**
  * A persistent WebSocket terminal connection to an Orgo computer.
@@ -35,33 +46,42 @@ class TerminalConnection {
   ) {}
 
   /**
-   * Open the WebSocket connection.
+   * Open the WebSocket connection to the VM's terminal endpoint.
    */
   async connect(cols = 200, rows = 50): Promise<void> {
     if (this.connected && this.ws?.readyState === WebSocket.OPEN) return;
 
-    // Get computer URL
-    const info = (await apiRequest(
-      "GET",
-      `computers/${this.computerId}`,
-      this.apiKey,
-      { timeout: 20000 }
-    )) as unknown as ComputerInfo;
-
-    const baseUrl = info.url;
-    if (!baseUrl) {
-      throw new Error(`Computer ${this.computerId} has no URL`);
+    const endpoint = await getVmEndpoint(this.computerId, this.apiKey);
+    if (!endpoint) {
+      throw new Error(
+        `Computer ${this.computerId} has no direct API endpoint (instance_details missing)`
+      );
     }
 
-    // Get VNC password
-    const password = await getVncPassword(this.computerId, this.apiKey);
+    const token = await getVmAuthToken(this.computerId, this.apiKey);
+    const base = `ws://${endpoint.host}:${endpoint.apiPort}/terminal`;
+    const attempts: Array<{ url: string; headers?: Record<string, string> }> = [
+      // New metal image: query-token auth
+      { url: `${base}?token=${encodeURIComponent(token)}&cols=${cols}&rows=${rows}` },
+      // Old image: Bearer-header auth
+      { url: `${base}?cols=${cols}&rows=${rows}`, headers: { Authorization: `Bearer ${token}` } },
+    ];
 
-    // Convert HTTP URL to WebSocket URL
-    const wsBase = baseUrl.replace("http://", "ws://").replace("https://", "wss://");
-    const url = `${wsBase}/terminal?token=${password}&cols=${cols}&rows=${rows}`;
+    let lastError: Error | null = null;
+    for (const attempt of attempts) {
+      try {
+        await this.open(attempt.url, attempt.headers);
+        return;
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
+      }
+    }
+    throw lastError ?? new Error(`Terminal connection failed for computer ${this.computerId}`);
+  }
 
+  private open(url: string, headers?: Record<string, string>): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      this.ws = new WebSocket(url);
+      this.ws = new WebSocket(url, headers ? { headers } : undefined);
 
       const timeout = setTimeout(() => {
         this.ws?.terminate();
@@ -101,7 +121,16 @@ class TerminalConnection {
   /**
    * Execute a command and collect output.
    *
-   * Uses sentinel markers to detect command completion reliably.
+   * Sentinel markers bracket the command: a BEGIN sentinel excludes stale
+   * output from earlier (e.g. timed-out) commands, and the DONE sentinel
+   * carries `$?` so callers get the exit code.
+   *
+   * Timeout semantics:
+   * - No output at all -> rejects (the connection is likely dead or pointed at
+   *   the wrong service), letting callers fall back to the REST bash API.
+   * - Partial output -> resolves with an explicit truncation marker, and the
+   *   connection is disposed so the still-running command can't bleed into the
+   *   next call's output.
    */
   async execute(command: string, timeoutMs = 30000): Promise<string> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
@@ -109,25 +138,54 @@ class TerminalConnection {
     }
 
     const ws = this.ws!;
-    const sentinel = `__ORGO_DONE_${Date.now()}__`;
-    // The ; ensures echo runs regardless of command exit code
-    const wrappedCmd = `${command}; echo ${sentinel}`;
+    const id = `${Date.now()}_${++commandCounter}`;
+    const beginSentinel = `__ORGO_BEGIN_${id}__`;
+    const doneSentinel = `__ORGO_DONE_${id}__`;
+    // The ; ensures the DONE echo runs regardless of command exit code; $?
+    // captures that exit code.
+    const wrappedCmd = `echo ${beginSentinel}; ${command}; echo ${doneSentinel}:$?`;
 
-    // Regex to match sentinel on its own line (the actual echo output),
-    // NOT when it appears embedded in the echoed command (e.g. `echo __ORGO_DONE_xxx__`)
-    const sentinelLineRegex = new RegExp(`\\n${sentinel}\\s*(?:\\r?\\n|$)`);
+    // Match sentinels on their own line (actual echo output), NOT when they
+    // appear inline in the echoed command (where DONE is followed by `:$?`,
+    // not digits, and BEGIN is followed by `;`). Terminals separate lines
+    // with \r\n or bare \r, so anchor on either.
+    const beginLineRegex = new RegExp(`(?:^|[\\r\\n])${beginSentinel}\\s*[\\r\\n]`);
+    const doneLineRegex = new RegExp(`[\\r\\n]${doneSentinel}:(\\d+)\\s*(?:[\\r\\n]|$)`);
 
     return new Promise<string>((resolve, reject) => {
       let output = "";
       let resolved = false;
 
+      const finish = (fn: () => void) => {
+        resolved = true;
+        clearTimeout(timer);
+        ws.removeListener("message", onMessage);
+        fn();
+      };
+
       const timer = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          ws.removeListener("message", onMessage);
-          // Return whatever we collected so far
-          resolve(stripAnsi(output).trim() || "(command timed out — no output captured)");
-        }
+        if (resolved) return;
+        const cleaned = stripAnsi(output);
+        const beginMatch = beginLineRegex.exec(cleaned);
+        // A command may still be running on the session — dispose the
+        // connection so its late output can't pollute the next command.
+        finish(() => {
+          this.disconnect();
+          if (!beginMatch) {
+            // The BEGIN echo never arrived: the terminal isn't functioning
+            // (dead connection / wrong service) — reject so callers can fall
+            // back to the REST bash API.
+            reject(
+              new Error(`Terminal produced no output within ${Math.round(timeoutMs / 1000)}s`)
+            );
+          } else {
+            // The terminal works; the command itself exceeded the budget.
+            const partial = cleaned.substring(beginMatch.index + beginMatch[0].length).trim();
+            resolve(
+              `${partial || "(no output yet)"}\n[orgo_bash: timed out after ${Math.round(timeoutMs / 1000)}s — command may still be running on the VM; output above is partial]`
+            );
+          }
+        });
       }, timeoutMs);
 
       const onMessage = (data: WebSocket.Data) => {
@@ -138,36 +196,24 @@ class TerminalConnection {
           if (msg.type === "output" && msg.data) {
             output += msg.data;
 
-            // Check for sentinel on its own line (actual echo output).
-            // The echoed command line contains `echo __SENTINEL__` (preceded
-            // by a space), while the actual output has `\n__SENTINEL__\n`.
             const cleaned = stripAnsi(output);
-            const match = sentinelLineRegex.exec(cleaned);
-            if (match) {
-              resolved = true;
-              clearTimeout(timer);
-              ws.removeListener("message", onMessage);
-
-              // Extract output: everything between the echoed command line
-              // and the sentinel line. Find the first newline after the
-              // echoed command (which contains the sentinel text inline).
-              const sentinelPos = match.index;
-              // Skip past the echoed command line (first line containing wrappedCmd)
-              const cmdEchoEnd = cleaned.indexOf("\n");
-              const contentStart = cmdEchoEnd >= 0 && cmdEchoEnd < sentinelPos ? cmdEchoEnd + 1 : 0;
-              const clean = cleaned.substring(contentStart, sentinelPos);
-              resolve(clean.trim());
+            const doneMatch = doneLineRegex.exec(cleaned);
+            if (doneMatch) {
+              const exitCode = doneMatch[1];
+              const beginMatch = beginLineRegex.exec(cleaned);
+              // Content runs from after the BEGIN line to the DONE line.
+              const contentStart = beginMatch
+                ? beginMatch.index + beginMatch[0].length
+                : 0;
+              const clean = cleaned.substring(contentStart, doneMatch.index).trim();
+              finish(() =>
+                resolve(exitCode === "0" ? clean : `${clean}\n[exit code: ${exitCode}]`.trim())
+              );
             }
           } else if (msg.type === "error") {
-            resolved = true;
-            clearTimeout(timer);
-            ws.removeListener("message", onMessage);
-            reject(new Error(`Terminal error: ${msg.message || "unknown"}`));
+            finish(() => reject(new Error(`Terminal error: ${msg.message || "unknown"}`)));
           } else if (msg.type === "exit") {
-            resolved = true;
-            clearTimeout(timer);
-            ws.removeListener("message", onMessage);
-            resolve(stripAnsi(output).trim());
+            finish(() => resolve(stripAnsi(output).trim()));
           }
         } catch {
           // Ignore non-JSON messages
@@ -204,7 +250,9 @@ class TerminalConnection {
   }
 }
 
-// Connection pool: reuse connections per computer
+// Connection pool. Keyed by (api key, computer) — the HTTP transport hosts
+// many tenants in one process, and a computer-only key would hand tenant A's
+// authenticated terminal to tenant B.
 const pool = new Map<string, TerminalConnection>();
 
 /**
@@ -214,18 +262,19 @@ async function getTerminalConnection(
   computerId: string,
   apiKey: string
 ): Promise<TerminalConnection> {
-  let conn = pool.get(computerId);
+  const poolKey = tenantKey(apiKey, computerId);
+  let conn = pool.get(poolKey);
   if (conn?.isConnected) return conn;
 
   // Clean up stale connection
   if (conn) {
     conn.disconnect();
-    pool.delete(computerId);
+    pool.delete(poolKey);
   }
 
   conn = new TerminalConnection(computerId, apiKey);
   await conn.connect();
-  pool.set(computerId, conn);
+  pool.set(poolKey, conn);
   return conn;
 }
 
@@ -245,6 +294,19 @@ async function executeViaTerminal(
 }
 
 /**
+ * Drop pooled terminal connections for one computer (e.g., after restart),
+ * across all tenants.
+ */
+function disposeTerminals(computerId: string): void {
+  for (const [key, conn] of pool.entries()) {
+    if (key.endsWith(`:${computerId}`)) {
+      conn.disconnect();
+      pool.delete(key);
+    }
+  }
+}
+
+/**
  * Disconnect all terminal connections (cleanup on shutdown).
  */
 function disconnectAll(): void {
@@ -254,4 +316,4 @@ function disconnectAll(): void {
   pool.clear();
 }
 
-export { TerminalConnection, getTerminalConnection, executeViaTerminal, disconnectAll };
+export { TerminalConnection, getTerminalConnection, executeViaTerminal, disposeTerminals, disconnectAll };

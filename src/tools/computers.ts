@@ -1,19 +1,20 @@
 /**
  * Computer management tools.
  *
- * Computers are virtual machines within workspaces. They boot in under 500ms
- * and can be controlled via actions, shell commands, or AI agents.
+ * Computers are virtual machines within workspaces. They come online in
+ * seconds and can be controlled via actions, shell commands, or AI agents.
  */
 
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getApiKey, resolveComputerId } from "../auth.js";
-import { apiRequest, resolveFlyInstanceId } from "../client.js";
+import { apiRequest, clearVncCache, resolveFlyInstanceId } from "../client.js";
+import { disposeTerminals } from "../terminal.js";
 import { handleError, HttpError } from "../errors.js";
 import { applyLimit, jsonText, jsonTextCompact } from "./format.js";
 import { registerOrgoTool } from "./registry.js";
 
-const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Recommended for agent contexts to minimize token usage.";
+const COMPACT_DESC = "Return only essential fields (id, name, status, timestamps) instead of the full Orgo API response. Defaults to true to minimize token usage; pass false when you need the complete payload.";
 const LIMIT_DESC = "Optional cap on the number of items returned. The Orgo API doesn't paginate server-side, so this trims client-side. When set and truncation occurs, the response includes `total` and `truncated: true`. Omit to return everything (current default).";
 
 export function registerComputerTools(server: McpServer): void {
@@ -23,7 +24,7 @@ export function registerComputerTools(server: McpServer): void {
     description: "List all computers in a workspace. Returns IDs, names, status, specs. Use to pick a target computer when you have a workspace ID — combine with `compact: true` to keep the payload lean.",
     inputSchema: {
       workspace_id: z.string().min(1).describe("Workspace ID to list computers from"),
-      compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
+      compact: z.boolean().optional().default(true).describe(COMPACT_DESC),
       limit: z.number().int().min(1).max(500).optional().describe(LIMIT_DESC),
     },
     toolsets: ["core"],
@@ -56,7 +57,7 @@ export function registerComputerTools(server: McpServer): void {
   registerOrgoTool(server, {
     name: "orgo_create_computer",
     title: "Create Computer",
-    description: "Create a virtual computer in a workspace. Boots in under 500ms. Returns computer ID and details. Provide `workspace` (name — created if it doesn't exist) or `workspace_id`. Use when a new VM is needed; prefer `orgo_clone_computer` when an identical starting state already exists.",
+    description: "Create a virtual computer in a workspace. Online in seconds. Returns computer ID and details. Provide `workspace` (name — created if it doesn't exist) or `workspace_id`. Use when a new VM is needed; prefer `orgo_clone_computer` when an identical starting state already exists.",
     inputSchema: {
       workspace: z.string().min(1).optional().describe("Workspace name (created automatically if it doesn't exist). Provide this OR workspace_id."),
       workspace_id: z.string().min(1).optional().describe("Target workspace ID. Provide this OR workspace (name)."),
@@ -131,7 +132,7 @@ export function registerComputerTools(server: McpServer): void {
     description: "Get computer details including status, specs, and dashboard URL. Use to check VM status before sending actions, or to retrieve the dashboard URL for human handoff.",
     inputSchema: {
       computer_id: z.string().optional().describe("Computer ID (uses ORGO_DEFAULT_COMPUTER_ID if omitted)"),
-      compact: z.boolean().optional().default(false).describe(COMPACT_DESC),
+      compact: z.boolean().optional().default(true).describe(COMPACT_DESC),
     },
     toolsets: ["core"],
     annotations: {
@@ -198,6 +199,10 @@ export function registerComputerTools(server: McpServer): void {
         const id = resolveComputerId(computer_id);
         const flyId = await resolveFlyInstanceId(id, apiKey);
         const data = await apiRequest("POST", `computers/${flyId}/restart`, apiKey);
+        // Ports and (potentially) the VM auth token change across restarts —
+        // drop cached credentials/endpoints and pooled terminal sessions.
+        clearVncCache(id);
+        disposeTerminals(id);
         return { content: [{ type: "text" as const, text: jsonText(data) }] };
       } catch (e) {
         return { content: [{ type: "text" as const, text: handleError(e) }], isError: true };
