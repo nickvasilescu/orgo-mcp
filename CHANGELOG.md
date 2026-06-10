@@ -14,6 +14,13 @@ Platform-drift fixes from the June 2026 full audit (all findings live-verified a
 - **`orgo_restart_computer`** invalidates cached VM credentials/endpoints and pooled terminal sessions for the restarted computer.
 - **`orgo_exec` / `orgo_bash` REST fallback** HTTP timeouts now outlast the command's own timeout budget (previously a 300 s exec rode on a 30 s HTTP timeout).
 
+**Hardened (adversarial review pass)**
+- Commands on one terminal connection are strictly serialized; each command's timeout starts at dispatch. Previously, concurrent `orgo_bash` calls shared one WebSocket — a peer's timeout disposal could strip a live listener and re-execute an already-submitted command via the REST fallback.
+- The connection pool stores the connect promise (set before the first await), so concurrent callers share one handshake instead of leaking N−1 WebSockets; `connect()` also guards against overlapping handshakes.
+- Commands ship base64-encoded inside `eval "$(printf %s '<b64>' | base64 -d)"`, so heredocs, comments, trailing `&`, quotes, and newlines can never interact with the sentinel wrapper (heredocs previously hung the session to full timeout).
+- Sentinels are emitted via `printf '\n…'`, so a command whose output lacks a trailing newline no longer false-times-out.
+- A 401 from a direct VM request evicts the cached token and retries once with a fresh one — externally-initiated restarts/token rotations now self-heal instead of breaking screenshot/bash until process restart; total terminal-connect failure also evicts.
+
 **Changed**
 - **`compact` now defaults to `true`** on list/get tools (pass `compact: false` for the full payload), and JSON responses are no longer pretty-printed — together cutting typical response sizes ~5-10× for agent contexts.
 - Direct-VM calls cache `instance_details` for 60 s, eliminating 1–2 platform round trips per screenshot.

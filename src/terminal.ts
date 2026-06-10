@@ -19,7 +19,7 @@
  */
 
 import WebSocket from "ws";
-import { getVmAuthToken, getVmEndpoint, tenantKey } from "./client.js";
+import { clearVncCache, getVmAuthToken, getVmEndpoint, tenantKey } from "./client.js";
 import type { TerminalMessage } from "./types.js";
 
 // Comprehensive ANSI escape sequence regex:
@@ -28,6 +28,20 @@ const ANSI_REGEX = /\x1b(?:\[[0-9;?]*[a-zA-Z]|\].*?(?:\x07|\x1b\\)|[()][AB012]|[
 
 function stripAnsi(text: string): string {
   return text.replace(ANSI_REGEX, "");
+}
+
+/** Last regex match in `text`, optionally only before `before`. */
+function lastMatch(regex: RegExp, text: string, before = Infinity): RegExpExecArray | null {
+  const global = new RegExp(regex.source, "g");
+  let last: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = global.exec(text)) !== null) {
+    if (m.index >= before) break;
+    last = m;
+    // Zero-width safety
+    if (m.index === global.lastIndex) global.lastIndex++;
+  }
+  return last;
 }
 
 let commandCounter = 0;
@@ -39,6 +53,12 @@ class TerminalConnection {
   private ws: WebSocket | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private connected = false;
+  private connecting: Promise<void> | null = null;
+  // Commands are strictly serialized per connection: the terminal is one
+  // shared bash session, and interleaved sends would mix sentinel scopes,
+  // consume each other's stdin, and double-run commands via the REST
+  // fallback after a peer's timeout disposal.
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
     private computerId: string,
@@ -47,10 +67,19 @@ class TerminalConnection {
 
   /**
    * Open the WebSocket connection to the VM's terminal endpoint.
+   * Concurrent callers share one in-flight handshake.
    */
-  async connect(cols = 200, rows = 50): Promise<void> {
-    if (this.connected && this.ws?.readyState === WebSocket.OPEN) return;
+  connect(cols = 200, rows = 50): Promise<void> {
+    if (this.connected && this.ws?.readyState === WebSocket.OPEN) return Promise.resolve();
+    if (this.connecting) return this.connecting;
 
+    this.connecting = this.doConnect(cols, rows).finally(() => {
+      this.connecting = null;
+    });
+    return this.connecting;
+  }
+
+  private async doConnect(cols: number, rows: number): Promise<void> {
     const endpoint = await getVmEndpoint(this.computerId, this.apiKey);
     if (!endpoint) {
       throw new Error(
@@ -76,11 +105,20 @@ class TerminalConnection {
         lastError = e instanceof Error ? e : new Error(String(e));
       }
     }
+    // Both auth forms failed — the cached token may be stale (the VM restarts
+    // and rotates tokens outside this process too). Evict so the next attempt
+    // refetches fresh credentials instead of failing forever.
+    clearVncCache(this.computerId);
     throw lastError ?? new Error(`Terminal connection failed for computer ${this.computerId}`);
   }
 
   private open(url: string, headers?: Record<string, string>): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // A previous open attempt may have left a keep-alive behind.
+      if (this.pingInterval) {
+        clearInterval(this.pingInterval);
+        this.pingInterval = null;
+      }
       this.ws = new WebSocket(url, headers ? { headers } : undefined);
 
       const timeout = setTimeout(() => {
@@ -119,20 +157,37 @@ class TerminalConnection {
   }
 
   /**
-   * Execute a command and collect output.
+   * Execute a command and collect output. Commands on one connection run
+   * strictly one at a time; each command's timeout starts when it actually
+   * dispatches, not when it queues behind a peer.
+   */
+  execute(command: string, timeoutMs = 30000): Promise<string> {
+    const run = this.queue.then(() => this.executeNow(command, timeoutMs));
+    // The chain must survive rejections, or one failure would poison every
+    // later command on this connection.
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  /**
+   * The actual single-flight command execution.
    *
-   * Sentinel markers bracket the command: a BEGIN sentinel excludes stale
-   * output from earlier (e.g. timed-out) commands, and the DONE sentinel
-   * carries `$?` so callers get the exit code.
+   * The command is shipped base64-encoded inside an `eval "$(… | base64 -d)"`
+   * wrapper, so heredocs, comments, trailing `&`, quotes, and newlines in the
+   * user's command can never interact with the sentinel syntax. Both sentinels
+   * are emitted via `printf '\n…'` so they always start on a fresh line, even
+   * when the command's output lacks a trailing newline or the prompt precedes
+   * BEGIN without one.
    *
    * Timeout semantics:
-   * - No output at all -> rejects (the connection is likely dead or pointed at
-   *   the wrong service), letting callers fall back to the REST bash API.
-   * - Partial output -> resolves with an explicit truncation marker, and the
-   *   connection is disposed so the still-running command can't bleed into the
-   *   next call's output.
+   * - BEGIN never seen -> rejects (the terminal isn't functioning), letting
+   *   callers fall back to the REST bash API — the command never dispatched,
+   *   so the fallback cannot double-run it.
+   * - BEGIN seen -> the terminal works and the command itself exceeded the
+   *   budget: resolve with an explicit truncation marker and dispose the
+   *   connection so the still-running command can't bleed into later calls.
    */
-  async execute(command: string, timeoutMs = 30000): Promise<string> {
+  private async executeNow(command: string, timeoutMs: number): Promise<string> {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       await this.connect();
     }
@@ -141,14 +196,18 @@ class TerminalConnection {
     const id = `${Date.now()}_${++commandCounter}`;
     const beginSentinel = `__ORGO_BEGIN_${id}__`;
     const doneSentinel = `__ORGO_DONE_${id}__`;
-    // The ; ensures the DONE echo runs regardless of command exit code; $?
-    // captures that exit code.
-    const wrappedCmd = `echo ${beginSentinel}; ${command}; echo ${doneSentinel}:$?`;
+    const encoded = Buffer.from(command, "utf8").toString("base64");
+    const wrappedCmd =
+      `printf '\\n%s\\n' ${beginSentinel}; ` +
+      `eval "$(printf '%s' '${encoded}' | base64 -d)"; ` +
+      `printf '\\n%s:%s\\n' ${doneSentinel} $?`;
 
-    // Match sentinels on their own line (actual echo output), NOT when they
-    // appear inline in the echoed command (where DONE is followed by `:$?`,
-    // not digits, and BEGIN is followed by `;`). Terminals separate lines
-    // with \r\n or bare \r, so anchor on either.
+    // Match sentinels on their own line (the printf output), NOT where they
+    // appear inline in the echoed command (there BEGIN is followed by `;` and
+    // DONE by ` $?`, never by `:digits`). Terminals separate lines with \r\n
+    // or bare \r, so anchor on either. The real BEGIN is the LAST one before
+    // DONE — the echoed command line (which can wrap at the terminal width)
+    // always precedes it.
     const beginLineRegex = new RegExp(`(?:^|[\\r\\n])${beginSentinel}\\s*[\\r\\n]`);
     const doneLineRegex = new RegExp(`[\\r\\n]${doneSentinel}:(\\d+)\\s*(?:[\\r\\n]|$)`);
 
@@ -166,13 +225,14 @@ class TerminalConnection {
       const timer = setTimeout(() => {
         if (resolved) return;
         const cleaned = stripAnsi(output);
-        const beginMatch = beginLineRegex.exec(cleaned);
+        const beginMatch = lastMatch(beginLineRegex, cleaned);
         // A command may still be running on the session — dispose the
-        // connection so its late output can't pollute the next command.
+        // connection so its late output can't pollute the next command (the
+        // next call in the queue reconnects fresh).
         finish(() => {
           this.disconnect();
           if (!beginMatch) {
-            // The BEGIN echo never arrived: the terminal isn't functioning
+            // The BEGIN marker never arrived: the terminal isn't functioning
             // (dead connection / wrong service) — reject so callers can fall
             // back to the REST bash API.
             reject(
@@ -200,7 +260,7 @@ class TerminalConnection {
             const doneMatch = doneLineRegex.exec(cleaned);
             if (doneMatch) {
               const exitCode = doneMatch[1];
-              const beginMatch = beginLineRegex.exec(cleaned);
+              const beginMatch = lastMatch(beginLineRegex, cleaned, doneMatch.index);
               // Content runs from after the BEGIN line to the DONE line.
               const contentStart = beginMatch
                 ? beginMatch.index + beginMatch[0].length
@@ -252,8 +312,10 @@ class TerminalConnection {
 
 // Connection pool. Keyed by (api key, computer) — the HTTP transport hosts
 // many tenants in one process, and a computer-only key would hand tenant A's
-// authenticated terminal to tenant B.
-const pool = new Map<string, TerminalConnection>();
+// authenticated terminal to tenant B. The pool stores the connect PROMISE,
+// set synchronously before the first await, so concurrent callers share one
+// connection instead of minting and leaking N−1 of them.
+const pool = new Map<string, Promise<TerminalConnection>>();
 
 /**
  * Get or create a terminal connection for a computer.
@@ -263,19 +325,34 @@ async function getTerminalConnection(
   apiKey: string
 ): Promise<TerminalConnection> {
   const poolKey = tenantKey(apiKey, computerId);
-  let conn = pool.get(poolKey);
-  if (conn?.isConnected) return conn;
 
-  // Clean up stale connection
-  if (conn) {
-    conn.disconnect();
-    pool.delete(poolKey);
+  const existing = pool.get(poolKey);
+  if (existing) {
+    const conn = await existing.catch(() => null);
+    if (conn?.isConnected) return conn;
+    // Stale or failed — clean up and re-mint (only if no one re-minted while
+    // we awaited).
+    if (pool.get(poolKey) === existing) {
+      conn?.disconnect();
+      pool.delete(poolKey);
+    } else {
+      return getTerminalConnection(computerId, apiKey);
+    }
   }
 
-  conn = new TerminalConnection(computerId, apiKey);
-  await conn.connect();
-  pool.set(poolKey, conn);
-  return conn;
+  const created = (async () => {
+    const conn = new TerminalConnection(computerId, apiKey);
+    await conn.connect();
+    return conn;
+  })();
+  pool.set(poolKey, created);
+
+  try {
+    return await created;
+  } catch (e) {
+    if (pool.get(poolKey) === created) pool.delete(poolKey);
+    throw e;
+  }
 }
 
 /**
@@ -298,10 +375,10 @@ async function executeViaTerminal(
  * across all tenants.
  */
 function disposeTerminals(computerId: string): void {
-  for (const [key, conn] of pool.entries()) {
+  for (const [key, promise] of pool.entries()) {
     if (key.endsWith(`:${computerId}`)) {
-      conn.disconnect();
       pool.delete(key);
+      promise.then((conn) => conn.disconnect()).catch(() => {});
     }
   }
 }
@@ -310,8 +387,8 @@ function disposeTerminals(computerId: string): void {
  * Disconnect all terminal connections (cleanup on shutdown).
  */
 function disconnectAll(): void {
-  for (const conn of pool.values()) {
-    conn.disconnect();
+  for (const promise of pool.values()) {
+    promise.then((conn) => conn.disconnect()).catch(() => {});
   }
   pool.clear();
 }

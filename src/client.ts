@@ -159,6 +159,11 @@ async function getVmEndpoint(
 
 /**
  * Make a request directly to the VM, bypassing the platform proxy.
+ *
+ * On a 401 the cached token is evicted and the request retried once with a
+ * fresh one — VMs rotate their token when restarted outside this process, and
+ * without the retry a stale cache entry would break direct calls until the
+ * MCP process itself restarts.
  */
 async function directVmRequest(
   method: string,
@@ -169,52 +174,64 @@ async function directVmRequest(
 ): Promise<Record<string, unknown>> {
   const { json: body, timeout = 30000 } = options;
 
-  const vmToken = await getVmAuthToken(computerId, apiKey);
-  const info = await getInstanceInfo(computerId, apiKey);
+  const attempt = async (): Promise<Record<string, unknown>> => {
+    const vmToken = await getVmAuthToken(computerId, apiKey);
+    const info = await getInstanceInfo(computerId, apiKey);
 
-  const details = info.instance_details || {};
-  const apiPort = details.apiPort;
-  const host = details.publicHost || details.vncHost;
+    const details = info.instance_details || {};
+    const apiPort = details.apiPort;
+    const host = details.publicHost || details.vncHost;
 
-  let directUrl: string;
-  if (apiPort && host) {
-    directUrl = `http://${host}:${apiPort}`;
-  } else {
-    directUrl = (info.url || "").replace(/\/+$/, "");
-  }
-
-  if (!directUrl) {
-    throw new Error(`Could not resolve VM URL for computer ${computerId}`);
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(`${directUrl}/${endpoint}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${vmToken}`,
-        "Content-Type": "application/json",
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      let detail = "";
-      try {
-        const errJson = (await response.json()) as Record<string, unknown>;
-        detail = (errJson.error as string) || "";
-      } catch {
-        // ignore
-      }
-      throw new HttpError(response.status, detail, response.statusText);
+    let directUrl: string;
+    if (apiPort && host) {
+      directUrl = `http://${host}:${apiPort}`;
+    } else {
+      directUrl = (info.url || "").replace(/\/+$/, "");
     }
 
-    return (await response.json()) as Record<string, unknown>;
-  } finally {
-    clearTimeout(timer);
+    if (!directUrl) {
+      throw new Error(`Could not resolve VM URL for computer ${computerId}`);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(`${directUrl}/${endpoint}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${vmToken}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const errJson = (await response.json()) as Record<string, unknown>;
+          detail = (errJson.error as string) || "";
+        } catch {
+          // ignore
+        }
+        throw new HttpError(response.status, detail, response.statusText);
+      }
+
+      return (await response.json()) as Record<string, unknown>;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    return await attempt();
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 401) {
+      clearVncCache(computerId);
+      return attempt();
+    }
+    throw e;
   }
 }
 
