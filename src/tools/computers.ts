@@ -67,7 +67,7 @@ export function registerComputerTools(server: McpServer): void {
       cpu: z.enum(["1", "2", "4", "8", "16"]).default("2").describe("CPU cores"),
       gpu: z.enum(["none", "a10", "l40s", "a100-40gb", "a100-80gb"]).default("none").describe("GPU type"),
       resolution: z.string().default("1280x720x24").describe("Display resolution (WIDTHxHEIGHTxDEPTH)"),
-      image: z.string().optional().describe("Custom template image reference (from orgo Forge/Templates)"),
+      image: z.string().optional().describe("Template reference to launch from (orgo Forge/Templates), format namespace/name@version, e.g. system/hermes-agent@1.0.0. Sent to the API as template_ref."),
     },
     toolsets: ["admin"],
     annotations: {
@@ -116,7 +116,9 @@ export function registerComputerTools(server: McpServer): void {
         // gpu is accepted for forward-compat; the platform currently ignores
         // anything other than the default, so only send a non-default value.
         if (gpu && gpu !== "none") body.gpu = gpu;
-        if (image) body.image = image;
+        // The API only reads `template_ref`; it silently ignores unknown
+        // fields such as `image` and creates a plain base VM.
+        if (image) body.template_ref = image;
 
         const data = await apiRequest("POST", "computers", apiKey, { json: body, timeout: 60000 });
         return { content: [{ type: "text" as const, text: jsonText(data) }] };
