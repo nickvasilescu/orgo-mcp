@@ -1,84 +1,73 @@
-/**
- * Orgo MCP Server -- McpServer instantiation and tool registration.
- */
+// Public entry point. `createHttpHandler` is what a host wants; the rest is
+// here for anything wiring its own transport.
 
-import { createRequire } from "node:module";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerAllTools } from "./tools/index.js";
-import { getToolPolicySummary } from "./tools/policy.js";
+import { McpServer, fromJsonSchema } from '@modelcontextprotocol/server'
+import { call, type Config } from './client.js'
+import { toResult } from './result.js'
+import { SPEC_MAX_AGE_MS, type Spec } from './spec.js'
+import { withDefaults, type Tool } from './tools.js'
 
-// Single source of truth — a hardcoded constant here shipped "4.0.0" in
-// serverInfo for two releases after package.json moved on.
-const require = createRequire(import.meta.url);
-const VERSION: string = (require("../package.json") as { version: string }).version;
+export { createHttpHandler, type HttpOptions } from './http.js'
+export { loadSpec, fetchSpec, type Spec, type Schema } from './spec.js'
+export { buildTools, applyPolicy, applyDefaultComputer, type Tool } from './tools.js'
+export type { Config } from './client.js'
 
-const ORGO_MCP_INSTRUCTIONS = `
-# Orgo MCP -- Tool Selection Guide
+/** Kept in step with package.json by a test, so no bundler has to resolve a path at runtime. */
+export const VERSION = '1.1.1'
 
-Orgo provides cloud virtual machines for AI agents. This MCP gives you focused control:
-workspace/computer management, shell commands, screen interaction, and file management.
+export interface ServerOptions {
+  /** Reported to clients. Defaults to this package's version. */
+  version?: string
+  /** Orientation for the model, normally the spec's own `info.description`. */
+  instructions?: string
+}
 
-## Default Computer
-
-If ORGO_DEFAULT_COMPUTER_ID is set, you can omit computer_id on any tool call.
-The default is used automatically. Pass computer_id explicitly to target a different VM.
-
-## When orgo-chrome-mcp is also active
-
-If both orgo_* and orgo_chrome_* tools are available, use this hierarchy:
-
-### For Chrome/browser tasks -> prefer orgo_chrome_* tools
-- **Reading pages**: orgo_chrome_read_page (DOM/accessibility tree) over orgo_screenshot (pixels)
-- **Clicking elements**: orgo_chrome_click (element refs, reliable) over orgo_click (pixel coordinates)
-- **Typing in forms**: orgo_chrome_form_input (sets value by ref) over orgo_type (simulates keystrokes)
-- **Scrolling pages**: orgo_chrome_scroll over orgo_scroll
-- **Running JS**: orgo_chrome_evaluate (in-page context) over orgo_bash
-
-### For non-browser / native desktop tasks -> use orgo_* tools
-- **Full VM screenshots**: orgo_screenshot -- shows entire desktop, all windows
-- **Native app interaction**: orgo_click, orgo_type, orgo_key, orgo_drag -- pixel-based, works everywhere
-- **Shell commands**: orgo_bash -- run any command on the VM (uses WebSocket terminal for reliability)
-- **Python execution**: orgo_exec -- run Python code directly
-- **File operations**: orgo_export_file, orgo_upload_file -- move files to/from the VM
-
-### General rule
-DOM-aware tools (orgo_chrome_*) are faster and more reliable for web content.
-Pixel-based tools (orgo_*) are the right choice for native apps, terminal windows, or full desktop.
-
-## Tool Categories
-
-- **VM Management**: list, create, get, delete, restart, clone, resize, ensure_running
-- **Screen Actions**: screenshot, click, type, key, scroll, drag
-- **Shell**: bash (WebSocket terminal preferred), exec (Python)
-- **Files**: list, upload, export, download
-
-## Production Policy Controls
-
-Operators can restrict the exposed tool surface without code changes:
-- ORGO_READ_ONLY=true exposes only tools marked read-only.
-- ORGO_TOOLSETS chooses tool groups: core, admin, screen, shell, files.
-- ORGO_ENABLED_TOOLS allowlists exact tool names.
-- ORGO_DISABLED_TOOLS removes exact tool names.
-
-Current policy:
-${getToolPolicySummary()}
-`.trim();
-
-/**
- * Create and configure the Orgo MCP server with all tools registered.
- */
-export function createOrgoMcpServer(): McpServer {
+export function createServer(config: Config, tools: Tool[], options: ServerOptions = {}): McpServer {
   const server = new McpServer(
     {
-      name: "orgo-mcp",
-      version: VERSION,
+      name: 'orgo',
+      title: 'Orgo',
+      version: options.version ?? VERSION,
+      icons: [{ src: 'https://www.orgo.ai/icon.svg', mimeType: 'image/svg+xml', sizes: ['any'] }],
     },
     {
-      instructions: ORGO_MCP_INSTRUCTIONS,
-    }
-  );
+      instructions: options.instructions,
+      // The tool list is the same for every caller and fixed for the life of the
+      // process, so it is worth a shared cache for as long as the spec is fresh.
+      cacheHints: {
+        'tools/list': { ttlMs: SPEC_MAX_AGE_MS, cacheScope: 'public' },
+        'server/discover': { ttlMs: SPEC_MAX_AGE_MS, cacheScope: 'public' },
+      },
+    },
+  )
 
-  registerAllTools(server);
+  for (const tool of tools) {
+    server.registerTool(
+      tool.name,
+      {
+        title: tool.title,
+        description: tool.description,
+        inputSchema: fromJsonSchema<Record<string, unknown>>(tool.inputSchema),
+        annotations: tool.annotations,
+      },
+      async (input, ctx) => {
+        try {
+          const args = withDefaults(tool, input ?? {}, config.defaultComputerId)
+          const reply = await call(tool, args, config, ctx.mcpReq.signal)
+          return await toResult(reply, config.baseUrl, tool.response)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          return { content: [{ type: 'text' as const, text: `Request failed: ${message}` }], isError: true }
+        }
+      },
+    )
+  }
 
-  return server;
+  return server
+}
+
+/** The API base the spec points at, with an optional origin override. */
+export function resolveBaseUrl(spec: Spec, origin?: string): string {
+  const base = origin ? `${origin}/api` : (spec.servers?.[0]?.url ?? 'https://www.orgo.ai/api')
+  return base.replace(/\/$/, '')
 }

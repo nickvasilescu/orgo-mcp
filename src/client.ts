@@ -1,388 +1,156 @@
-/**
- * HTTP client for Orgo API access.
- *
- * Two routing strategies:
- * - Platform API proxy for computer actions (click, type, screenshot, bash, etc.)
- * - Direct VM connection as fallback (uses the VM desktop-API token + instance_details)
- *
- * Computer actions route through /api/computers/{id}/{action}, which handles
- * VM port resolution internally. Falls back to direct VM connection on errors.
- *
- * VM auth: new metal-image VMs issue a `desktop_api_token` distinct from the
- * VNC password and reject `Bearer <vncPassword>`; older cold-boot images set
- * desktop_api_token == password. GET /computers/{id}/vnc-password returns both,
- * so `desktop_api_token ?? password` is correct for every image generation.
- */
+// Turns a tool call into an HTTP request against the Orgo API.
 
-import { createHash } from "node:crypto";
-import { HttpError } from "./errors.js";
-import type { ComputerInfo, InstanceDetails, VncPasswordResponse } from "./types.js";
+import { readFile } from 'node:fs/promises'
+import { basename } from 'node:path'
+import type { Tool } from './tools.js'
 
-const ORGO_API_BASE = "https://www.orgo.ai/api";
-
-// Caches are keyed by (api key, computer) — never by computer alone. The HTTP
-// transport hosts many tenants in one process; a computer-only key would serve
-// tenant A's credentials/connections to tenant B on a cache hit.
-function tenantKey(apiKey: string, computerId: string): string {
-  const keyHash = createHash("sha256").update(apiKey).digest("hex").slice(0, 16);
-  return `${keyHash}:${computerId}`;
-}
-
-// VM desktop-API tokens, keyed by tenantKey.
-const vmTokenCache = new Map<string, string>();
-
-// instance_details (host/port) per computer, keyed by tenantKey, with a short
-// TTL — ports only change on restart, and refetching via ensure-running on
-// every direct call added 1-2 round trips per screenshot.
-const INSTANCE_DETAILS_TTL_MS = 60_000;
-const instanceDetailsCache = new Map<string, { details: ComputerInfo; expires: number }>();
-
-function authHeaders(apiKey: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  };
-}
-
-/**
- * Make an authenticated request to the Orgo platform API.
- */
-async function apiRequest(
-  method: string,
-  path: string,
-  apiKey: string,
-  options: {
-    json?: Record<string, unknown>;
-    params?: Record<string, string>;
-    timeout?: number;
-    baseUrl?: string;
-  } = {}
-): Promise<Record<string, unknown>> {
-  const { json: body, params, timeout = 30000, baseUrl = ORGO_API_BASE } = options;
-
-  let url = `${baseUrl}/${path}`;
-  if (params) {
-    const search = new URLSearchParams(params);
-    url += `?${search.toString()}`;
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: authHeaders(apiKey),
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      let detail = "";
-      try {
-        const errJson = (await response.json()) as Record<string, unknown>;
-        detail = (errJson.error as string) || "";
-      } catch {
-        // ignore parse errors
-      }
-      throw new HttpError(response.status, detail, response.statusText);
-    }
-
-    return (await response.json()) as Record<string, unknown>;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/**
- * Fetch and cache the VM desktop-API auth token for a computer.
- *
- * Prefers `desktop_api_token` (required by new metal-image VMs) and falls back
- * to the VNC password (== the token on older images).
- */
-async function getVmAuthToken(computerId: string, apiKey: string): Promise<string> {
-  const cacheKey = tenantKey(apiKey, computerId);
-  const cached = vmTokenCache.get(cacheKey);
-  if (cached) return cached;
-
-  const data = (await apiRequest(
-    "GET",
-    `computers/${computerId}/vnc-password`,
-    apiKey,
-    { timeout: 15000 }
-  )) as unknown as VncPasswordResponse;
-
-  const token = data.desktop_api_token || data.password;
-  if (!token) {
-    throw new Error(`Could not get VM auth token for computer ${computerId}`);
-  }
-
-  vmTokenCache.set(cacheKey, token);
-  return token;
-}
-
-/**
- * Resolve the VM's direct connection info (host + apiPort), with a short TTL
- * cache. Uses ensure-running so suspended VMs come back with fresh ports.
- */
-async function getInstanceInfo(computerId: string, apiKey: string): Promise<ComputerInfo> {
-  const cacheKey = tenantKey(apiKey, computerId);
-  const cached = instanceDetailsCache.get(cacheKey);
-  if (cached && cached.expires > Date.now()) return cached.details;
-
-  const info = (await apiRequest(
-    "POST",
-    `computers/${computerId}/ensure-running`,
-    apiKey,
-    { timeout: 15000 }
-  )) as unknown as ComputerInfo;
-
-  instanceDetailsCache.set(cacheKey, { details: info, expires: Date.now() + INSTANCE_DETAILS_TTL_MS });
-  return info;
-}
-
-/**
- * Resolve the direct VM endpoint (host + apiPort) for WebSocket/HTTP access.
- */
-async function getVmEndpoint(
-  computerId: string,
+export interface Config {
   apiKey: string
-): Promise<{ host: string; apiPort: number } | null> {
-  const info = await getInstanceInfo(computerId, apiKey);
-  const details: InstanceDetails = info.instance_details || {};
-  const host = details.publicHost || details.vncHost;
-  if (details.apiPort && host) {
-    return { host, apiPort: details.apiPort };
-  }
-  return null;
+  baseUrl: string
+  timeoutMs: number
+  /** Fills `id` on computer tools when the caller omits it. */
+  defaultComputerId?: string
 }
 
-/**
- * Make a request directly to the VM, bypassing the platform proxy.
- *
- * On a 401 the cached token is evicted and the request retried once with a
- * fresh one — VMs rotate their token when restarted outside this process, and
- * without the retry a stale cache entry would break direct calls until the
- * MCP process itself restarts.
- */
-async function directVmRequest(
-  method: string,
-  computerId: string,
-  endpoint: string,
-  apiKey: string,
-  options: { json?: Record<string, unknown>; timeout?: number } = {}
-): Promise<Record<string, unknown>> {
-  const { json: body, timeout = 30000 } = options;
+export interface Reply {
+  status: number
+  contentType: string
+  json?: unknown
+  text: string
+}
 
-  const attempt = async (): Promise<Record<string, unknown>> => {
-    const vmToken = await getVmAuthToken(computerId, apiKey);
-    const info = await getInstanceInfo(computerId, apiKey);
+/** A build-log stream never ends on its own; return what arrived and move on. */
+const STREAM_BUDGET_MS = 10_000
+const STREAM_LIMIT_BYTES = 64 * 1024
 
-    const details = info.instance_details || {};
-    const apiPort = details.apiPort;
-    const host = details.publicHost || details.vncHost;
+const RETRIES = Number(process.env.ORGO_RETRIES ?? 2)
+const BACKOFF_MS = 250
 
-    let directUrl: string;
-    if (apiPort && host) {
-      directUrl = `http://${host}:${apiPort}`;
-    } else {
-      directUrl = (info.url || "").replace(/\/+$/, "");
-    }
+export async function call(
+  tool: Tool,
+  input: Record<string, unknown>,
+  config: Config,
+  signal: AbortSignal,
+): Promise<Reply> {
+  const url = new URL(config.baseUrl + fillPath(tool, input))
+  const headers: Record<string, string> = { Authorization: `Bearer ${config.apiKey}` }
 
-    if (!directUrl) {
-      throw new Error(`Could not resolve VM URL for computer ${computerId}`);
-    }
+  for (const [name, arg] of Object.entries(tool.args))
+    if (arg.in === 'query' && input[name] !== undefined) url.searchParams.set(name, String(input[name]))
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
+  const body = await buildBody(tool, input, headers)
 
+  const res = await send(
+    () =>
+      fetch(url, {
+        method: tool.method,
+        headers,
+        body,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(config.timeoutMs)]),
+      }),
+    // Only the spec's idempotent methods are safe to repeat. Retrying a click or
+    // a bash command could run it twice, so those get one shot.
+    tool.annotations.idempotentHint,
+    signal,
+  )
+
+  const contentType = res.headers.get('content-type') ?? ''
+  const text = contentType.includes('text/event-stream') ? await readStream(res) : await res.text()
+
+  let json: unknown
+  if (contentType.includes('json')) {
     try {
-      const response = await fetch(`${directUrl}/${endpoint}`, {
-        method,
-        headers: {
-          Authorization: `Bearer ${vmToken}`,
-          "Content-Type": "application/json",
-        },
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        let detail = "";
-        try {
-          const errJson = (await response.json()) as Record<string, unknown>;
-          detail = (errJson.error as string) || "";
-        } catch {
-          // ignore
-        }
-        throw new HttpError(response.status, detail, response.statusText);
-      }
-
-      return (await response.json()) as Record<string, unknown>;
-    } finally {
-      clearTimeout(timer);
+      json = JSON.parse(text)
+    } catch {
+      // Fall through to the raw text; a malformed body is still worth showing.
     }
-  };
+  }
 
-  try {
-    return await attempt();
-  } catch (e) {
-    if (e instanceof HttpError && e.status === 401) {
-      clearVncCache(computerId);
-      return attempt();
+  return { status: res.status, contentType, json, text }
+}
+
+/** Rides out a proxy restart or a dropped connection, doubling the wait each time. */
+async function send(attempt: () => Promise<Response>, retryable: boolean, signal: AbortSignal): Promise<Response> {
+  for (let tries = 0; ; tries++) {
+    const last = !retryable || tries >= RETRIES || signal.aborted
+    try {
+      const res = await attempt()
+      if (res.status < 500 || last) return res
+    } catch (error) {
+      if (last) throw error
     }
-    throw e;
+    await new Promise((resume) => setTimeout(resume, BACKOFF_MS * 2 ** tries))
   }
 }
 
-/**
- * Make a request to a computer via the platform API proxy.
- *
- * Falls back to direct VM connection if the proxy returns server errors
- * or is unreachable (stale ports after restart).
- *
- * Set direct=true to bypass the proxy (required for screenshot).
- */
-async function computerAction(
-  method: string,
-  computerId: string,
-  endpoint: string,
-  apiKey: string,
-  options: {
-    json?: Record<string, unknown>;
-    timeout?: number;
-    direct?: boolean;
-  } = {}
-): Promise<Record<string, unknown>> {
-  const { json: body, timeout = 30000, direct = false } = options;
-
-  if (direct) {
-    return directVmRequest(method, computerId, endpoint, apiKey, { json: body, timeout });
-  }
-
-  // Try platform API proxy first
-  try {
-    return await apiRequest(method, `computers/${computerId}/${endpoint}`, apiKey, {
-      json: body,
-      timeout,
-    });
-  } catch (e) {
-    if (e instanceof HttpError) {
-      // Client errors (including auth) don't warrant fallback — only 5xx does
-      if (e.status < 500) {
-        throw e;
-      }
-      // 5xx -> fall back to direct VM connection
-    } else if (e instanceof Error) {
-      if (
-        !e.message.includes("ECONNREFUSED") &&
-        !e.message.includes("fetch failed") &&
-        e.name !== "AbortError"
-      ) {
-        throw e;
-      }
-      // Connection errors and timeouts -> fall back to direct
-    } else {
-      throw e;
-    }
-  }
-
-  // Fallback: direct connection
-  return directVmRequest(method, computerId, endpoint, apiKey, { json: body, timeout });
+function fillPath(tool: Tool, input: Record<string, unknown>): string {
+  return tool.path.replace(/\{([^}]+)\}/g, (_, name: string) => {
+    const value = input[name]
+    if (value === undefined) throw new Error(`Missing required path parameter: ${name}`)
+    return encodeURIComponent(String(value))
+  })
 }
 
-/**
- * Resolve a computer UUID to its fly_instance_id.
- *
- * Short IDs (<=12 chars, no dashes) are already fly_instance_ids.
- */
-async function resolveFlyInstanceId(computerId: string, apiKey: string): Promise<string> {
-  if (computerId.length <= 12 && !computerId.includes("-")) {
-    return computerId;
+async function buildBody(
+  tool: Tool,
+  input: Record<string, unknown>,
+  headers: Record<string, string>,
+): Promise<string | FormData | undefined> {
+  if (tool.body === 'none') return undefined
+
+  const whole = Object.keys(tool.args).find((name) => tool.args[name]?.in === 'whole-body')
+  if (whole) {
+    headers['Content-Type'] = 'application/json'
+    return input[whole] === undefined ? undefined : JSON.stringify(input[whole])
   }
-  const data = (await apiRequest("GET", `computers/${computerId}`, apiKey, {
-    timeout: 15000,
-  })) as unknown as ComputerInfo;
-  const flyId = data.fly_instance_id;
-  if (!flyId) {
-    throw new Error(`Computer ${computerId} has no fly_instance_id`);
+
+  const fields = Object.entries(tool.args).filter(([name, arg]) => arg.in === 'body' && input[name] !== undefined)
+
+  if (tool.body === 'multipart') {
+    const form = new FormData()
+    for (const [name, arg] of fields) {
+      if (arg.binary) {
+        const path = String(input[name])
+        form.append(name, new Blob([await readFile(path)]), basename(path))
+      } else {
+        form.append(name, String(input[name]))
+      }
+    }
+    return form // fetch sets the multipart boundary itself.
   }
-  return flyId;
+
+  // An open body schema carries keys the spec never enumerated, so anything the
+  // caller passed that isn't a known argument goes through untouched.
+  const extra = tool.inputSchema.additionalProperties
+    ? Object.entries(input).filter(([name]) => !Object.hasOwn(tool.args, name))
+    : []
+
+  headers['Content-Type'] = 'application/json'
+  return JSON.stringify(Object.fromEntries([...extra, ...fields.map(([name]) => [name, input[name]])]))
 }
 
-/**
- * Upload a file via multipart/form-data (cannot use JSON for file uploads).
- */
-async function uploadFile(
-  apiKey: string,
-  workspaceId: string,
-  filename: string,
-  fileBytes: Buffer,
-  options: { computerId?: string; contentType?: string; timeout?: number } = {}
-): Promise<Record<string, unknown>> {
-  const { computerId, contentType = "application/octet-stream", timeout = 60000 } = options;
-
-  const formData = new FormData();
-  const blob = new Blob([new Uint8Array(fileBytes)], { type: contentType });
-  formData.append("file", blob, filename);
-  formData.append("projectId", workspaceId);
-  if (computerId) {
-    formData.append("desktopId", computerId);
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
+async function readStream(res: Response): Promise<string> {
+  if (!res.body) return ''
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  // One timer for the whole stream. Checking the clock between reads would never
+  // fire, because a quiet stream parks inside the awaited read.
+  const stop = () => reader.cancel().catch(() => {})
+  const budget = setTimeout(stop, STREAM_BUDGET_MS).unref()
+  let out = ''
 
   try {
-    const response = await fetch(`${ORGO_API_BASE}/files/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: formData,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      let detail = "";
-      try {
-        const errJson = (await response.json()) as Record<string, unknown>;
-        detail = (errJson.error as string) || "";
-      } catch {
-        // ignore
-      }
-      throw new HttpError(response.status, detail, response.statusText);
+    while (out.length < STREAM_LIMIT_BYTES) {
+      const { done, value } = await reader.read()
+      if (done) break
+      out += decoder.decode(value, { stream: true })
     }
-
-    return (await response.json()) as Record<string, unknown>;
+  } catch {
+    // Timed out or aborted mid-stream; the partial log is still the answer.
   } finally {
-    clearTimeout(timer);
+    clearTimeout(budget)
+    await stop()
   }
-}
 
-/**
- * Clear cached VM credentials/endpoints for a computer (e.g., after restart),
- * across all tenants that cached it.
- */
-function clearVncCache(computerId?: string): void {
-  if (computerId) {
-    for (const cache of [vmTokenCache, instanceDetailsCache]) {
-      for (const key of cache.keys()) {
-        if (key.endsWith(`:${computerId}`)) cache.delete(key);
-      }
-    }
-  } else {
-    vmTokenCache.clear();
-    instanceDetailsCache.clear();
-  }
+  return out
 }
-
-export {
-  ORGO_API_BASE,
-  apiRequest,
-  computerAction,
-  resolveFlyInstanceId,
-  getVmAuthToken,
-  getVmEndpoint,
-  uploadFile,
-  clearVncCache,
-  tenantKey,
-};

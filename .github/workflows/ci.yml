@@ -1,107 +1,17 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
 
 jobs:
-  build-test-package:
+  test:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build and smoke test MCP tools
-        run: npm test
-
-      - name: Smoke test HTTP transport
-        run: npm run test:http
-
-      # npm test rebuilt dist/ from src/ above. The repo commits dist/ so the
-      # GitHub install (npx github:…) works without a prepare/build step — so
-      # a src/ change without a rebuilt dist/ must fail CI here.
-      - name: Verify committed dist/ is current
-        run: |
-          if [ -n "$(git status --porcelain -- dist)" ]; then
-            git status --porcelain -- dist
-            echo "::error::dist/ is stale — run 'npm run build' and commit the result."
-            exit 1
-          fi
-
-      - name: Verify package contents
-        run: |
-          npm pack --dry-run --json --ignore-scripts > pack.json
-          cat pack.json
-          node <<'NODE'
-          const fs = require("node:fs");
-          const pack = JSON.parse(fs.readFileSync("pack.json", "utf8"));
-          const paths = pack[0].files.map((file) => file.path);
-          const mustInclude = ["dist/index.js", "README.md", "LICENSE", "SECURITY.md", "CHANGELOG.md"];
-          const bannedPrefixes = [
-            "orgo_mcp/",
-            "src/",
-            "scripts/",
-            ".github/",
-            "pyproject.toml",
-            "dist/tools/access",
-            "dist/tools/account",
-            "dist/tools/agent",
-            "dist/tools/threads",
-            "dist/tools/streaming",
-            "dist/tools/templates",
-          ];
-          for (const path of mustInclude) {
-            if (!paths.includes(path)) throw new Error(`Missing package file: ${path}`);
-          }
-          for (const path of paths) {
-            if (bannedPrefixes.some((prefix) => path.startsWith(prefix))) {
-              throw new Error(`Unexpected package file: ${path}`);
-            }
-          }
-          NODE
-
-      - name: Build Docker image
-        run: docker build -t orgo-mcp-ci .
-
-  live-e2e:
-    # Skip on fork PRs (secrets unavailable) and on forks of this repo.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    needs: build-test-package
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Live E2E (skipped if ORGO_TEST_API_KEY secret is unset)
-        env:
-          ORGO_API_KEY: ${{ secrets.ORGO_TEST_API_KEY }}
-        run: |
-          if [ -z "$ORGO_API_KEY" ]; then
-            echo "::notice::ORGO_TEST_API_KEY secret not configured — skipping live e2e."
-            exit 0
-          fi
-          node scripts/e2e-live.mjs
+      - run: npm ci
+      - run: npm test

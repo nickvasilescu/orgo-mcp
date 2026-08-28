@@ -1,59 +1,60 @@
 {
-  "name": "@orgo-ai/mcp",
-  "version": "4.1.1",
-  "description": "MCP server for Orgo virtual computer control \u2014 works with Claude Code, Claude Desktop, and any MCP client",
-  "type": "module",
-  "main": "dist/index.js",
-  "bin": {
-    "orgo-mcp": "dist/index.js"
-  },
-  "files": [
-    "dist/",
-    "README.md",
-    "LICENSE",
-    "SECURITY.md",
-    "CHANGELOG.md"
-  ],
-  "scripts": {
-    "clean": "shx rm -rf dist",
-    "build": "npm run clean && tsc && shx chmod +x dist/index.js",
-    "dev": "tsc --watch",
-    "start": "node dist/index.js",
-    "test": "npm run build && node scripts/smoke-tools.mjs",
-    "test:http": "npm run build && node scripts/smoke-http.mjs",
-    "test:tools": "node scripts/smoke-tools.mjs",
-    "test:live": "npm run build && node scripts/e2e-live.mjs",
-    "test:full": "npm run build && node scripts/e2e-full.mjs",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "mcp",
-    "orgo",
-    "virtual-machine",
-    "cloud-computer",
-    "ai-agent",
-    "claude",
-    "model-context-protocol"
-  ],
-  "author": "Orgo",
+  "name": "orgo-mcp-server",
+  "version": "1.1.1",
+  "description": "MCP server for Orgo cloud computers, generated from the live Orgo OpenAPI spec",
   "license": "MIT",
+  "author": "Orgo",
+  "homepage": "https://docs.orgo.ai/guides/mcp",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nickvasilescu/orgo-mcp.git"
   },
-  "homepage": "https://github.com/nickvasilescu/orgo-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/nickvasilescu/orgo-mcp/issues"
+  },
+  "type": "module",
+  "main": "build/server.js",
+  "types": "build/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/server.d.ts",
+      "import": "./build/server.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "orgo-mcp-server": "build/index.js"
+  },
+  "files": [
+    "build",
+    "openapi.snapshot.json"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "sync": "tsx scripts/sync.ts",
+    "test": "tsc -p tsconfig.check.json && tsx test/tools.test.ts",
+    "prepublishOnly": "npm run build && npm test"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "ws": "^8.18.0",
-    "zod": "^3.25.1"
+    "@modelcontextprotocol/server": "^2.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.0",
-    "shx": "^0.3.4",
-    "typescript": "^5.8.0"
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "orgo",
+    "computer-use"
+  ]
 }
