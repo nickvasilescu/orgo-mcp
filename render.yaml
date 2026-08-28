@@ -1,0 +1,18 @@
+# Render blueprint for the hosted server at orgo-mcp.onrender.com.
+# Users connect with their own Orgo API key (Authorization bearer or
+# X-Orgo-API-Key header); the service itself holds no credentials.
+
+services:
+  - type: web
+    name: orgo-mcp
+    runtime: docker
+    repo: https://github.com/nickvasilescu/orgo-mcp
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production

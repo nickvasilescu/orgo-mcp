@@ -113,6 +113,41 @@ transport:  stdio
 
 </details>
 
+## Hosted server
+
+The same server runs hosted at `https://orgo-mcp.onrender.com/mcp`, so an HTTP-capable client
+needs no install at all: point it at the URL and send your own key with each request. The
+deployment holds nothing between callers.
+
+```bash
+claude mcp add --transport http orgo https://orgo-mcp.onrender.com/mcp \
+  --header "Authorization: Bearer sk_live_..."
+```
+
+Cursor takes one click, then your real key goes in under Settings → MCP:
+
+[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=orgo&config=eyJ1cmwiOiJodHRwczovL29yZ28tbWNwLm9ucmVuZGVyLmNvbS9tY3AiLCJoZWFkZXJzIjp7IkF1dGhvcml6YXRpb24iOiJCZWFyZXIgWU9VUl9PUkdPX0FQSV9LRVkifX0%3D)
+
+Or by hand, in `~/.cursor/mcp.json` or any client that speaks HTTP:
+
+```json
+{
+  "mcpServers": {
+    "orgo": {
+      "url": "https://orgo-mcp.onrender.com/mcp",
+      "headers": { "Authorization": "Bearer sk_live_..." }
+    }
+  }
+}
+```
+
+The `X-Orgo-API-Key` header works too, and `?computer_id=` on the URL pins a default computer
+for clients that only let you configure a URL. Claude Desktop is stdio-only, so it takes the
+npx setup above, or a bridge like [mcp-remote](https://github.com/geelen/mcp-remote). The
+deployment itself is this repo's `serve.mjs`, `Dockerfile` and `render.yaml` wrapping the
+library's `createHttpHandler`; see [Hosting it yourself](#hosting-it-yourself) to run the same
+thing anywhere else.
+
 ## More prompts
 
 ```text
@@ -362,6 +397,9 @@ Clients then connect to the URL instead of spawning a process:
   }
 }
 ```
+
+This repo's own `serve.mjs` is exactly this wired to `node:http` with `toNodeHandler`, and
+`render.yaml` deploys it as the [hosted server](#hosted-server) above.
 
 ## License
 
